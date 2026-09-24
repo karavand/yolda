@@ -1,0 +1,18 @@
+{
+  "name": "یولدا — سوپراپلیکیشن شهری",
+  "short_name": "یولدا",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./#/home",
+  "display": "standalone",
+  "background_color": "#f7f5fa",
+  "theme_color": "#5e1a84",
+  "icons": [
+    {
+      "src": "assets/icons/yld-brand-service-loyalty.webp",
+      "sizes": "1254x1254",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}

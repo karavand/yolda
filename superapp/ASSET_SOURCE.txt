@@ -1,0 +1,9 @@
+Yolda icon source
+=================
+
+Repository: https://github.com/karavand/yolda
+Directory:  assets/icons
+Commit:     fc6c776b94e49a00657d8b6c98a42404aa9d0412
+Files:      148 WebP icons
+
+The original filenames and binary files are preserved in assets/icons.
