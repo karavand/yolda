@@ -1,4 +1,4 @@
-const CACHE_NAME = "yolda-web-v2";
+const CACHE_NAME = "yolda-web-v28";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,16 +6,26 @@ const APP_SHELL = [
   "./assets/css/tokens.css",
   "./assets/css/main.css",
   "./assets/css/responsive.css",
+  "./assets/fonts/Dana-Regular.woff2",
+  "./assets/fonts/Dana-Medium.woff2",
+  "./assets/fonts/Dana-DemiBold.woff2",
+  "./assets/fonts/Dana-Bold.woff2",
+  "./assets/fonts/Dana-ExtraBold.woff2",
+  "./assets/fonts/Dana-Black.woff2",
   "./assets/js/config.js",
   "./assets/js/api.js",
   "./assets/js/data.js",
   "./assets/js/recommender.js",
   "./assets/js/pages.js",
   "./assets/js/app.js",
+  "./assets/brand/yolda-logo.png",
+  "./assets/media/yolda-loading.webm",
   "./assets/icons/yld-ui-categories.webp",
   "./assets/icons/yld-ui-cart.webp",
   "./assets/icons/yld-ui-orders.webp",
   "./assets/icons/yld-ui-notifications.webp",
+  "./assets/icons/yld-ui-chevron-previous.webp",
+  "./assets/icons/yld-ui-close.webp",
   "./assets/icons/yld-profile-personal-info.webp",
   "./assets/icons/yld-discover-recommended.webp",
   "./assets/icons/yld-map-location-off.webp"
@@ -52,15 +62,23 @@ self.addEventListener("fetch", (event) => {
 
   if (new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request).then((response) => {
+    caches.match(request).then(async (cached) => {
+      if (cached) return cached;
+      try {
+        const response = await fetch(request);
         if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, clone);
         }
         return response;
-      });
-      return cached || network;
+      } catch (error) {
+        if (request.destination === "image") {
+          const fallbackImage = await caches.match("./assets/icons/yld-map-location-off.webp");
+          if (fallbackImage) return fallbackImage;
+        }
+        return new Response("Offline", { status: 503, statusText: "Offline" });
+      }
     })
   );
 });

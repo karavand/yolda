@@ -25,9 +25,13 @@
     iconCategory: "all",
     aiProfile: null,
     aiResult: null,
+    aiDraft: null,
+    aiQuizSelections: {},
     aiHistory: [],
     aiFeedback: {},
     aiPreferences: {},
+    cms: { pages: {}, audit: [] },
+    cmsActivePage: "home",
     pendingPhone: "",
     user: {
       displayName: "سارا محمدی",
@@ -68,16 +72,21 @@
   normalizeState();
   applyTheme(state.theme);
   applyInterfacePreferences();
+  applyLanguage();
   const faNumber = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 });
   const faMoney = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 });
   let toastTimer;
   let loaderTimer;
+  let aiLoaderTimers = [];
   let otpTimer;
   let routeRenderToken = 0;
+  let skipNextPageLoader = false;
   let modalReturnFocus = null;
   let lastRenderedPath = "";
   const routeTrail = [currentPath()];
   let routeNavigationAction = "";
+  let carouselTimer;
+  let aiStepAdvanceTimer;
 
   const icon = (name) => `assets/icons/${name}`;
   const number = (value) => faNumber.format(value);
@@ -102,6 +111,7 @@
     if (!/^9\d{9}$/.test(digits)) return toPersianDigits(value);
     return `۰${toPersianDigits(digits.slice(0, 3))} ${toPersianDigits(digits.slice(3, 6))} ${toPersianDigits(digits.slice(6))}`;
   };
+  const ui = (fa, en) => state.settings.language === "en" ? en : fa;
 
   const pages = window.createYoldaPages({
     data,
@@ -138,6 +148,11 @@
     if (!Array.isArray(state.aiHistory)) state.aiHistory = [];
     if (!state.aiFeedback || typeof state.aiFeedback !== "object") state.aiFeedback = {};
     if (!state.aiPreferences || typeof state.aiPreferences !== "object") state.aiPreferences = {};
+    if (!state.aiQuizSelections || typeof state.aiQuizSelections !== "object") state.aiQuizSelections = {};
+    if (!state.cms || typeof state.cms !== "object") state.cms = { pages: {}, audit: [] };
+    if (!state.cms.pages || typeof state.cms.pages !== "object") state.cms.pages = {};
+    if (!Array.isArray(state.cms.audit)) state.cms.audit = [];
+    if (!data.cmsPages.some((pageItem) => pageItem.id === state.cmsActivePage)) state.cmsActivePage = "home";
     state.user = { ...defaultState.user, ...(state.user && typeof state.user === "object" ? state.user : {}) };
     if (!Array.isArray(state.addresses) || !state.addresses.length) state.addresses = defaultState.addresses.map((item) => ({ ...item }));
     if (!state.selectedAddressId || !state.addresses.some((item) => item.id === state.selectedAddressId)) {
@@ -156,7 +171,7 @@
       accessibility: { ...defaultState.settings.accessibility, ...(storedSettings.accessibility || {}) }
     };
     if (!["light", "dark", "system"].includes(state.theme)) state.theme = "system";
-    if (state.settings.language !== "fa") state.settings.language = "fa";
+    if (!["fa", "en"].includes(state.settings.language)) state.settings.language = "fa";
     state.isAuthenticated = state.isAuthenticated !== false;
     state.notificationsRead = state.notificationsRead === true;
     Object.defineProperty(state, "cart", {
@@ -173,6 +188,74 @@
     } catch (error) {
       // The application stays functional even when local storage is unavailable.
     }
+  }
+
+  function cmsSchema(pageId) {
+    return data.cmsPages.find((pageItem) => pageItem.id === pageId);
+  }
+
+  function ensureCmsPage(pageId) {
+    const schema = cmsSchema(pageId);
+    if (!schema) return null;
+    const saved = state.cms.pages[pageId] && typeof state.cms.pages[pageId] === "object" ? state.cms.pages[pageId] : {};
+    const validIds = schema.blocks.map((block) => block.id);
+    const savedOrder = Array.isArray(saved.order) ? saved.order.filter((id) => validIds.includes(id)) : [];
+    saved.order = [...savedOrder, ...validIds.filter((id) => !savedOrder.includes(id))];
+    saved.blocks = saved.blocks && typeof saved.blocks === "object" ? saved.blocks : {};
+    schema.blocks.forEach((block) => {
+      const blockState = saved.blocks[block.id] && typeof saved.blocks[block.id] === "object" ? saved.blocks[block.id] : {};
+      saved.blocks[block.id] = {
+        visible: blockState.visible !== false,
+        fields: blockState.fields && typeof blockState.fields === "object" ? blockState.fields : {}
+      };
+    });
+    state.cms.pages[pageId] = saved;
+    return saved;
+  }
+
+  function recordCmsAudit(action, pageId, blockId = "") {
+    const schema = cmsSchema(pageId);
+    const block = schema?.blocks.find((item) => item.id === blockId);
+    state.cms.audit.unshift({
+      id: `cms-${Date.now()}`,
+      action,
+      pageId,
+      pageTitle: schema?.title || pageId,
+      blockId,
+      blockTitle: block?.label || "",
+      at: new Date().toISOString()
+    });
+    state.cms.audit = state.cms.audit.slice(0, 30);
+  }
+
+  function applyCmsContent() {
+    const root = app.querySelector("[data-cms-page]");
+    if (!root) return;
+    const pageId = root.dataset.cmsPage;
+    const schema = cmsSchema(pageId);
+    const pageState = ensureCmsPage(pageId);
+    if (!schema || !pageState) return;
+    const renderedBlocks = [...root.children].filter((element) => element.hasAttribute("data-cms-block"));
+    const byId = new Map(renderedBlocks.map((element) => [element.dataset.cmsBlock, element]));
+    pageState.order.forEach((blockId) => {
+      const blockElement = byId.get(blockId);
+      if (blockElement) root.append(blockElement);
+    });
+    schema.blocks.forEach((block) => {
+      const blockElement = byId.get(block.id);
+      if (!blockElement) return;
+      const blockState = pageState.blocks[block.id];
+      blockElement.hidden = blockState.visible === false;
+      blockElement.setAttribute("aria-hidden", blockState.visible === false ? "true" : "false");
+      blockElement.querySelectorAll("[data-cms-field]").forEach((fieldElement) => {
+        const fieldKey = fieldElement.dataset.cmsField;
+        if (!Object.prototype.hasOwnProperty.call(blockState.fields, fieldKey)) return;
+        const value = blockState.fields[fieldKey];
+        const attributeName = fieldElement.dataset.cmsAttr;
+        if (attributeName) fieldElement.setAttribute(attributeName, value);
+        else fieldElement.textContent = value;
+      });
+    });
   }
 
   function resolvedTheme(preference = state.theme) {
@@ -211,6 +294,46 @@
     document.documentElement.dataset.motion = preferences.reduceMotion ? "reduced" : "full";
     document.documentElement.dataset.contrast = preferences.highContrast ? "high" : "normal";
     document.documentElement.dataset.textSize = preferences.largeText ? "large" : "default";
+  }
+
+  function applyLanguage() {
+    const english = state.settings.language === "en";
+    document.documentElement.lang = english ? "en" : "fa";
+    document.documentElement.dir = english ? "ltr" : "rtl";
+    document.documentElement.dataset.language = english ? "en" : "fa";
+  }
+
+  function localizeRenderedContent(root) {
+    if (state.settings.language !== "en" || !root) return;
+    const translations = new Map([
+      ["خانه", "Home"], ["سفارش‌ها", "Orders"], ["سبد خرید", "Cart"], ["پیام‌ها", "Messages"], ["پروفایل", "Profile"],
+      ["غذا و رستوران", "Food & restaurants"], ["سوپرمارکت", "Grocery"], ["داروخانه", "Pharmacy"], ["پیشنهاد هوشمند", "AI recommendations"],
+      ["پروفایل و حساب", "Profile & account"], ["مدیریت و عملیات", "Management"], ["صفحه‌های نمونه", "Demo pages"],
+      ["سرویس‌های یولدا", "Yolda services"], ["مشاهده همه", "View all"], ["محبوب‌های اطراف شما", "Popular near you"],
+      ["همه محبوب‌ها", "All nearby"], ["رستوران‌ها", "Restaurants"], ["خرید سریع سوپرمارکتی", "Quick grocery shopping"],
+      ["مشاهده بیشتر", "View more"], ["پیشنهاد امروز", "Today's offer"], ["اطراف من", "Near me"],
+      ["شروع پیشنهاد هوشمند", "Start AI suggestions"], ["تنظیم دقیق سلیقه ←", "Fine-tune preferences"], ["سفارش‌های قبلی", "Previous orders"],
+      ["تنظیمات", "Settings"], ["همه تنظیمات", "All settings"], ["ظاهر و پوسته", "Appearance"], ["دسترس‌پذیری", "Accessibility"],
+      ["تنظیمات اعلان‌ها", "Notification settings"], ["زبان", "Language"], ["امنیت حساب", "Account security"], ["درباره یولدا", "About Yolda"],
+      ["ویرایش پروفایل", "Edit profile"], ["مدیریت حساب", "Manage account"], ["سفارش‌های من", "My orders"], ["آدرس‌های من", "My addresses"],
+      ["روش‌های پرداخت", "Payment methods"], ["کیف پول یولدا", "Yolda wallet"], ["باشگاه یولدا", "Yolda rewards"],
+      ["دعوت دوستان", "Invite friends"], ["علاقه‌مندی‌ها", "Favorites"], ["پشتیبانی", "Support"], ["خروج از حساب", "Sign out"],
+      ["اعلان‌ها", "Notifications"], ["همه دیده شده", "All read"], ["بازگشت به صفحه قبل", "Go back"], ["جست‌وجوی غذا، کالا، داروخانه یا سرویس...", "Search food, products, pharmacy or services…"]
+    ]);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const original = node.nodeValue;
+      const trimmed = original.trim();
+      if (translations.has(trimmed)) node.nodeValue = original.replace(trimmed, translations.get(trimmed));
+      node = walker.nextNode();
+    }
+    root.querySelectorAll("[aria-label], [placeholder]").forEach((element) => {
+      ["aria-label", "placeholder"].forEach((attribute) => {
+        const value = element.getAttribute(attribute);
+        if (translations.has(value)) element.setAttribute(attribute, translations.get(value));
+      });
+    });
   }
 
   function currentPath() {
@@ -305,25 +428,39 @@
     const visual = video.closest(".loader-visual");
     video.addEventListener("canplay", () => {
       visual?.classList.add("has-media");
+      loader.classList.add("has-media");
       video.play().catch(() => undefined);
     });
-    video.addEventListener("error", () => visual?.classList.remove("has-media"));
+    video.addEventListener("error", () => {
+      visual?.classList.remove("has-media");
+      loader.classList.remove("has-media");
+    });
     video.load();
   }
 
-  function showPageLoader() {
+  function showPageLoader(path = currentPath(), isInitial = false) {
     if (!pageLoader) return performance.now();
     window.clearTimeout(loaderTimer);
+    const routeTitle = pages.resolve(path).title || "صفحه";
+    const message = pageLoader.querySelector(".loader-message");
+    if (message) message.textContent = isInitial ? "در حال آماده‌کردن یولدا…" : `در حال باز کردن ${routeTitle}…`;
+    pageLoader.classList.toggle("is-route-transition", !isInitial);
     pageLoader.hidden = false;
     document.body.classList.add("has-blocking-loader");
     app.setAttribute("aria-busy", "true");
-    window.requestAnimationFrame(() => pageLoader.classList.add("is-visible"));
+    const video = pageLoader.querySelector("video");
+    if (video) {
+      try { video.currentTime = 0; } catch (error) { /* Media may not be seekable yet. */ }
+      video.play().catch(() => undefined);
+    }
+    pageLoader.classList.add("is-visible");
     return performance.now();
   }
 
-  function hidePageLoader(startedAt = performance.now(), token = routeRenderToken) {
+  function hidePageLoader(startedAt = performance.now(), token = routeRenderToken, isInitial = false) {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const remaining = Math.max(0, (reducedMotion ? 60 : 340) - (performance.now() - startedAt));
+    const minimumDuration = reducedMotion ? 60 : isInitial ? 1100 : 620;
+    const remaining = Math.max(0, minimumDuration - (performance.now() - startedAt));
     window.clearTimeout(loaderTimer);
     loaderTimer = window.setTimeout(() => {
       if (token !== routeRenderToken || !pageLoader) return;
@@ -338,7 +475,9 @@
 
   async function renderWithLoader() {
     const token = ++routeRenderToken;
-    if (lastRenderedPath) {
+    const isInitial = !lastRenderedPath;
+    if (skipNextPageLoader) {
+      skipNextPageLoader = false;
       window.clearTimeout(loaderTimer);
       pageLoader?.classList.remove("is-visible");
       if (pageLoader) pageLoader.hidden = true;
@@ -347,24 +486,41 @@
       render();
       return;
     }
-    const startedAt = showPageLoader();
+    const startedAt = showPageLoader(currentPath(), isInitial);
     await nextFrame();
     if (token !== routeRenderToken) return;
     render();
-    hidePageLoader(startedAt, token);
+    hidePageLoader(startedAt, token, isInitial);
   }
 
-  function showAiLoader() {
+  function showAiLoader(service = "food") {
     if (!aiLoader) return;
+    aiLoaderTimers.forEach((timer) => window.clearTimeout(timer));
+    aiLoaderTimers = [];
+    const serviceLabels = { food: "غذاها", grocery: "کالاها", pharmacy: "محصولات سلامت" };
+    const message = aiLoader.querySelector(".loader-message");
+    const messages = [
+      "دارم درخواستت را دقیق می‌فهمم…",
+      `دارم ${serviceLabels[service] || "گزینه‌ها"}ی موجود را بررسی می‌کنم…`,
+      "بهترین انتخاب‌ها را بر اساس قیمت، زمان و سلیقه مرتب می‌کنم…"
+    ];
+    if (message) message.textContent = messages[0];
+    messages.slice(1).forEach((text, index) => {
+      aiLoaderTimers.push(window.setTimeout(() => {
+        if (message && !aiLoader.hidden) message.textContent = text;
+      }, (index + 1) * 420));
+    });
     aiLoader.hidden = false;
     document.body.classList.add("has-blocking-loader");
     app.setAttribute("aria-busy", "true");
-    window.requestAnimationFrame(() => aiLoader.classList.add("is-visible"));
+    aiLoader.classList.add("is-visible");
     aiLoader.querySelector("video")?.play().catch(() => undefined);
   }
 
   async function hideAiLoader() {
     if (!aiLoader) return;
+    aiLoaderTimers.forEach((timer) => window.clearTimeout(timer));
+    aiLoaderTimers = [];
     aiLoader.classList.remove("is-visible");
     await new Promise((resolve) => window.setTimeout(resolve, 190));
     aiLoader.hidden = true;
@@ -372,11 +528,12 @@
     app.setAttribute("aria-busy", "false");
   }
 
-  function navigate(path) {
+  function navigate(path, options = {}) {
     if (currentPath() === path) {
       render();
       return;
     }
+    skipNextPageLoader = options.loader === false;
     routeTrail.push(path);
     routeNavigationAction = "push";
     window.location.hash = path;
@@ -393,25 +550,28 @@
   }
 
   function desktopNavigation(path) {
+    const englishNavLabels = {
+      "/home": "Home", "/food": "Food", "/grocery": "Grocery", "/pharmacy": "Pharmacy", "/ai": "Yolda AI", "/offers": "Offers", "/orders": "Orders", "/wallet": "Wallet", "/profile": "Profile", "/settings": "Settings", "/support": "Support", "/vendor-panel": "Vendor panel", "/courier": "Courier panel", "/ops": "Operations", "/superadmin/content": "Content superadmin"
+    };
     return `
-      <aside class="desktop-nav" aria-label="ناوبری کامل نمونه یولدا">
+      <aside class="desktop-nav" aria-label="${ui("ناوبری کامل نمونه یولدا", "Yolda navigation")}">
         <a class="desktop-brand" href="#/home" data-route="/home">
           ${brandMark("full-light")}
-          <span class="desktop-brand-copy"><span>سوپراپلیکیشن شهری</span><small>خدمات روزمره ارومیه</small></span>
+          <span class="desktop-brand-copy"><span>${ui("سوپراپلیکیشن شهری", "City super app")}</span><small>${ui("خدمات روزمره ارومیه", "Everyday services in Urmia")}</small></span>
         </a>
         ${data.desktopNavigation.map((group) => `
           <nav class="desktop-nav-group" aria-label="${group.label}">
-            <div class="desktop-nav-label">${group.label}</div>
+            <div class="desktop-nav-label">${state.settings.language === "en" ? ({ "سرویس‌ها": "Services", "حساب": "Account", "پنل‌ها": "Panels" }[group.label] || group.label) : group.label}</div>
             ${group.items.map((item) => `
               <a class="desktop-nav-link ${isRouteActive(path, item.route) ? "is-active" : ""}" href="#${item.route}" data-route="${item.route}" ${isRouteActive(path, item.route) ? "aria-current=\"page\"" : ""}>
-                <img src="${icon(item.icon)}" alt=""><span>${item.title}</span>
+                <img src="${icon(item.icon)}" alt=""><span>${state.settings.language === "en" ? (englishNavLabels[item.route] || item.title) : item.title}</span>
               </a>
             `).join("")}
           </nav>
         `).join("")}
         <div class="desktop-nav-footer">
-          نسخه وب یولدا · شهر ارومیه<br>
-          PWA · پیشنهاد هوشمند · طراحی واکنش‌گرا
+          ${ui("نسخه وب یولدا · شهر ارومیه", "Yolda web · Urmia")}<br>
+          ${ui("PWA · پیشنهاد هوشمند · طراحی واکنش‌گرا", "PWA · AI recommendations · Responsive")}
         </div>
       </aside>
     `;
@@ -423,7 +583,7 @@
     return `
       <header class="mobile-header ${hasBack ? "has-back" : ""}">
         <div class="header-leading">
-          ${hasBack ? `<button type="button" class="header-icon header-back" data-back aria-label="بازگشت به صفحه قبل"><img src="${icon("yld-ui-chevron-previous.webp")}" alt=""></button>` : ""}
+          ${hasBack ? `<button type="button" class="header-icon header-back" data-back aria-label="${ui("بازگشت به صفحه قبل", "Go back")}"><img src="${icon("yld-ui-chevron-previous.webp")}" alt=""></button>` : ""}
           <a class="brand-lockup" href="#/home" data-route="/home" aria-label="خانه یولدا">
             ${brandMark()}
             <span>${escapeHtml(title || "یولدا")}</span>
@@ -452,11 +612,11 @@
 
   function bottomNavigation(path) {
     const items = [
-      ["خانه", "/home", "yld-ui-categories.webp"],
-      ["سفارش‌ها", "/orders", "yld-ui-orders.webp"],
-      ["سبد خرید", "/cart", "yld-ui-cart.webp"],
-      ["پیام‌ها", "/notifications", "yld-ui-notifications.webp"],
-      ["پروفایل", "/profile", "yld-profile-personal-info.webp"]
+      [ui("خانه", "Home"), "/home", "yld-ui-categories.webp"],
+      [ui("سفارش‌ها", "Orders"), "/orders", "yld-ui-orders.webp"],
+      [ui("سبد خرید", "Cart"), "/cart", "yld-ui-cart.webp"],
+      [ui("پیام‌ها", "Messages"), "/notifications", "yld-ui-notifications.webp"],
+      [ui("پروفایل", "Profile"), "/profile", "yld-profile-personal-info.webp"]
     ];
     return `
       <nav class="bottom-nav" aria-label="ناوبری اصلی">
@@ -482,6 +642,7 @@
 
   function render() {
     const path = currentPath();
+    window.clearInterval(carouselTimer);
     if (path !== "/auth/otp") window.clearInterval(otpTimer);
     const routeChanged = path !== lastRenderedPath;
     const previousScrollY = window.scrollY;
@@ -491,6 +652,7 @@
     const hasBottom = routePage.bottom === true;
     applyTheme(state.theme);
     applyInterfacePreferences();
+    applyLanguage();
     document.title = `${routePage.title || "یولدا"} — یولدا`;
     app.innerHTML = `
       <div class="app-shell">
@@ -522,6 +684,9 @@
     bindPageInputs(path);
     hydrateBrandAssets();
     normalizeIconSprites(app);
+    localizeRenderedContent(app);
+    applyCmsContent();
+    startAutoCarousels();
     lastRenderedPath = path;
     window.scrollTo({ top: routeChanged ? 0 : previousScrollY, behavior: "auto" });
     const main = document.getElementById("page-content");
@@ -544,6 +709,23 @@
         document.querySelectorAll(".notification-item").forEach((item) => item.classList.add("is-read"));
       }, 900);
     }
+  }
+
+  function startAutoCarousels() {
+    const carousel = document.querySelector("[data-auto-carousel]");
+    if (!carousel) return;
+    const items = [...carousel.children];
+    if (items.length < 2) return;
+    let index = 0;
+    const delay = Math.max(1000, Number(carousel.dataset.autoCarousel) || 3000);
+    carouselTimer = window.setInterval(() => {
+      if (document.hidden || carousel.matches(":hover") || carousel.contains(document.activeElement)) return;
+      index = (index + 1) % items.length;
+      const item = items[index];
+      const centeredPosition = item.offsetLeft - ((carousel.clientWidth - item.clientWidth) / 2);
+      carousel.scrollTo({ left: centeredPosition, behavior: state.settings.accessibility.reduceMotion ? "auto" : "smooth" });
+      carousel.dataset.activeSlide = String(index);
+    }, delay);
   }
 
   function isRouteActive(path, route) {
@@ -591,11 +773,11 @@
   function applyAiPreferences(profile) {
     const preferences = state.aiPreferences || {};
     if (!profile.budget && preferences.budget) profile.budget = Number(preferences.budget) || null;
-    if (!profile.cuisine && preferences.cuisine) {
+    if ((profile.service || "food") === "food" && !profile.cuisine && preferences.cuisine) {
       profile.cuisine = preferences.cuisine;
       if (profile.vector[preferences.cuisine] !== undefined) profile.vector[preferences.cuisine] = 0.7;
     }
-    if ((!profile.dietary || !profile.dietary.length) && preferences.dietary) {
+    if ((profile.service || "food") === "food" && (!profile.dietary || !profile.dietary.length) && preferences.dietary) {
       profile.dietary = [preferences.dietary];
       if (profile.vector[preferences.dietary] !== undefined) profile.vector[preferences.dietary] = 0.75;
     }
@@ -607,45 +789,108 @@
 
   async function buildAiRecommendation(profile, query) {
     const startedAt = performance.now();
-    showAiLoader();
+    const service = profile.service || "food";
+    showAiLoader(service);
     try {
       await nextFrame();
       const result = window.YOLDA_RECOMMENDER.recommend(data.products, profile, {
-        service: "food",
+        service,
         limit: 6,
-        feedback: state.aiPreferences.learning === false ? {} : state.aiFeedback
+        feedback: state.aiPreferences?.learning === false ? {} : state.aiFeedback
       });
       state.aiProfile = profile;
       state.aiResult = result;
+      state.aiDraft = null;
       state.aiHistory.unshift({
         id: `ai-${Date.now()}`,
         query,
         generatedAt: result.generatedAt,
         productIds: result.results.map((item) => item.product.id),
-        confidence: result.confidence
+        confidence: result.confidence,
+        service
       });
       state.aiHistory = state.aiHistory.slice(0, 12);
       saveState();
       const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      const remaining = Math.max(0, (reducedMotion ? 100 : 520) - (performance.now() - startedAt));
+      const remaining = Math.max(0, (reducedMotion ? 120 : 1260) - (performance.now() - startedAt));
       await new Promise((resolve) => window.setTimeout(resolve, remaining));
       await hideAiLoader();
-      navigate("/ai/results");
+      navigate("/ai/results", { loader: false });
     } catch (error) {
       await hideAiLoader();
       showToast("ساخت پیشنهاد انجام نشد؛ دوباره تلاش کن");
     }
   }
 
-  function runAiFromText(text) {
-    const profile = applyAiPreferences(window.YOLDA_RECOMMENDER.parseNaturalLanguage(text));
+  function runAiFromText(text, service = "") {
+    const profile = window.YOLDA_RECOMMENDER.parseNaturalLanguage(text);
+    if (service) profile.service = service;
+    applyAiPreferences(profile);
     return buildAiRecommendation(profile, text);
   }
 
+  function advanceAiQuiz(input) {
+    const step = Number(input?.dataset.aiStepChoice);
+    if (!input?.name || !input.value || step < 1 || step > 4) return;
+    const scope = input.closest("form") || document;
+    scope.querySelectorAll(`input[name="${input.name}"]`).forEach((candidate) => { candidate.checked = candidate === input; });
+    state.aiQuizSelections = { ...(state.aiQuizSelections || {}), [input.name]: input.value };
+    saveState();
+    input.closest(".choice-card")?.classList.add("is-advancing");
+    scope.setAttribute("aria-busy", "true");
+    window.clearTimeout(aiStepAdvanceTimer);
+    aiStepAdvanceTimer = window.setTimeout(() => navigate(`/ai/quiz/${step + 1}`), 180);
+  }
+
   function runAiFromForm(form) {
-    const values = Object.fromEntries(new FormData(form).entries());
-    const profile = applyAiPreferences(window.YOLDA_RECOMMENDER.profileFromSelections(values));
-    return buildAiRecommendation(profile, "انتخاب از پرسش‌نامه هوشمند");
+    const values = { ...(state.aiQuizSelections || {}), ...Object.fromEntries(new FormData(form).entries()) };
+    state.aiQuizSelections = { ...values };
+    saveState();
+    const selectedProfile = window.YOLDA_RECOMMENDER.profileFromSelections(values);
+    const draftQuery = state.aiDraft?.query || "";
+    const naturalProfile = draftQuery ? window.YOLDA_RECOMMENDER.parseNaturalLanguage(draftQuery) : null;
+    const profile = selectedProfile;
+    if (naturalProfile) {
+      profile.vector = profile.vector || {};
+      Object.entries(naturalProfile.vector || {}).forEach(([key, value]) => {
+        profile.vector[key] = Math.max(Number(profile.vector[key]) || 0, Number(value) || 0);
+      });
+      profile.exclusions = [...new Set([...(naturalProfile.exclusions || []), ...(profile.exclusions || [])])];
+      profile.recognized = [...new Set([...(naturalProfile.recognized || []), ...(profile.recognized || [])])];
+      if (!values.budget && naturalProfile.budget) profile.budget = naturalProfile.budget;
+      if (!values.maxDelivery && naturalProfile.maxDelivery) profile.maxDelivery = naturalProfile.maxDelivery;
+    }
+    applyAiPreferences(profile);
+    return buildAiRecommendation(profile, draftQuery || "انتخاب از پرسش‌نامه هوشمند");
+  }
+
+  function refineAiRecommendation(kind) {
+    const base = state.aiProfile || window.YOLDA_RECOMMENDER.parseNaturalLanguage("یک انتخاب خوب و محبوب");
+    const profile = JSON.parse(JSON.stringify(base));
+    profile.vector = profile.vector || {};
+    profile.recognized = [...new Set([...(profile.recognized || []), `refine-${kind}`])];
+    const labels = {
+      cheaper: "گزینه‌های اقتصادی‌تر",
+      faster: "گزینه‌های سریع‌تر",
+      healthier: "گزینه‌های سالم‌تر",
+      popular: "محبوب‌ترین گزینه‌ها"
+    };
+    if (kind === "cheaper") {
+      profile.budget = Math.min(Number(profile.budget) || 320000, 320000);
+      profile.vector.economic = 1;
+    }
+    if (kind === "faster") {
+      profile.maxDelivery = Math.min(Number(profile.maxDelivery) || 25, 25);
+      profile.vector.fast = 1;
+      profile.priority = "fast";
+    }
+    if (kind === "healthier") {
+      profile.vector.healthy = 1;
+      profile.vector.light = 0.9;
+      profile.vector["low-calorie"] = 0.9;
+    }
+    if (kind === "popular") profile.priority = "popular";
+    return buildAiRecommendation(profile, labels[kind] || "اصلاح پیشنهادها");
   }
 
   function toggleFavorite(id) {
@@ -682,17 +927,65 @@
     }
   }
 
+  function deviceFromUserAgent(userAgent = navigator.userAgent) {
+    const source = String(userAgent);
+    const os = /Windows/i.test(source) ? "Windows" : /Android/i.test(source) ? "Android" : /iPhone|iPad/i.test(source) ? "iOS / iPadOS" : /Mac OS/i.test(source) ? "macOS" : /Linux/i.test(source) ? "Linux" : "دستگاه ناشناخته";
+    const browser = /Edg\//i.test(source) ? "Microsoft Edge" : /Chrome\//i.test(source) ? "Google Chrome" : /Firefox\//i.test(source) ? "Mozilla Firefox" : /Safari\//i.test(source) ? "Safari" : "مرورگر وب";
+    const kind = /Mobile|Android|iPhone/i.test(source) ? "موبایل" : /iPad|Tablet/i.test(source) ? "تبلت" : "رایانه";
+    return { os, browser, kind };
+  }
+
   function openModal(type, itemId = "") {
     const address = state.addresses.find((item) => item.id === itemId);
     const card = state.paymentMethods.find((item) => item.id === itemId);
+    const currentDevice = deviceFromUserAgent();
+    const notificationDetails = {
+      delivery: ["پیک در مسیر شماست", "علی رضایی سفارش #YL-2458 را از فروشنده تحویل گرفته است. زمان تخمینی رسیدن ۱۲ دقیقه است و می‌توانی مسیر را از صفحه رهگیری زنده ببینی.", "yld-map-courier-moving.webp"],
+      payment: ["پرداخت با موفقیت ثبت شد", "پرداخت سفارش #YL-2458 به مبلغ ۷۴۹٬۰۰۰ تومان تأیید شد. رسید پرداخت در جزئیات سفارش و بخش تراکنش‌ها در دسترس است.", "yld-auth-phone-verified.webp"],
+      offer: ["تخفیف مخصوص شما", "تا پایان امشب با انتخاب فروشنده‌های نشان‌دار، ۲۰٪ تخفیف سفارش غذا دریافت می‌کنی. تخفیف در مرحله پرداخت خودکار اعمال می‌شود.", "yld-discover-discounted.webp"]
+    };
+    const faqDetails = {
+      cancel: ["چطور سفارش را لغو کنم؟", "تا پنج دقیقه پس از ثبت سفارش، از صفحه رهگیری گزینه «لغو سفارش» را بزن. بعد از شروع آماده‌سازی ممکن است هزینه مواد اولیه کسر شود؛ مبلغ قابل بازگشت پیش از تأیید به تو نمایش داده می‌شود."],
+      refund: ["بازگشت وجه چقدر طول می‌کشد؟", "بازگشت به کیف پول یولدا معمولاً آنی است. بازگشت به کارت بانکی بسته به شبکه بانکی بین ۲۴ تا ۷۲ ساعت کاری زمان می‌برد و وضعیت آن در تراکنش‌ها قابل پیگیری است."],
+      zone: ["آیا آدرس من در محدوده است؟", "در صفحه آدرس‌ها نقطه تحویل را روی نقشه انتخاب کن. اگر خارج از محدوده فعال ارومیه باشد، پیش از ذخیره پیام واضح نمایش داده می‌شود و هزینه‌ای از حساب کسر نخواهد شد."]
+    };
+    const notificationDetail = notificationDetails[itemId] || notificationDetails.delivery;
+    const faqDetail = faqDetails[itemId] || faqDetails.cancel;
+    const opsActionTitles = {
+      "courier-new": "ثبت پیک جدید", "courier-location": "موقعیت زنده پیک", "courier-detail": "جزئیات پیک", "vendor-new": "ثبت فروشنده جدید",
+      "finance-export": "خروجی تسویه‌ها", "report-new": "ساخت گزارش سفارشی", "report-detail": "جزئیات گزارش", "audit-filter": "فیلتر رویدادها",
+      "overview-export": "خروجی داشبورد", "customer-export": "خروجی مشتریان", "stock-alert": "محصولات ناموجود", "zone-alert": "ارسال خارج محدوده"
+    };
     const closeButton = `<button type="button" class="icon-button" data-close-modal aria-label="بستن پنجره"><img src="${icon("yld-ui-close.webp")}" alt=""></button>`;
+    const [cmsPageId = "", cmsBlockId = ""] = itemId.split(":");
+    const cmsPageDefinition = cmsSchema(cmsPageId);
+    const cmsBlockDefinition = cmsPageDefinition?.blocks.find((block) => block.id === cmsBlockId);
+    const cmsBlockState = cmsBlockDefinition ? ensureCmsPage(cmsPageId)?.blocks[cmsBlockId] : null;
+    const cmsFields = cmsBlockDefinition?.fields || [];
+    const cmsBlockModal = cmsBlockDefinition ? `
+      <div class="page-title-row"><div><p class="eyebrow">${escapeHtml(cmsPageDefinition.title)}</p><h2 id="modal-title">ویرایش ${escapeHtml(cmsBlockDefinition.label)}</h2></div>${closeButton}</div>
+      <p class="muted cms-modal-description">${escapeHtml(cmsBlockDefinition.description)}</p>
+      <form data-form="cms-block" class="cms-edit-form">
+        <input type="hidden" name="pageId" value="${escapeHtml(cmsPageId)}">
+        <input type="hidden" name="blockId" value="${escapeHtml(cmsBlockId)}">
+        ${cmsFields.length ? cmsFields.map((field, index) => {
+          const fieldId = `cms-field-${index}`;
+          const value = Object.prototype.hasOwnProperty.call(cmsBlockState?.fields || {}, field.key) ? cmsBlockState.fields[field.key] : field.default;
+          return `<div class="field"><label for="${fieldId}">${escapeHtml(field.label)}</label>${field.type === "textarea" ? `<textarea id="${fieldId}" name="field:${escapeHtml(field.key)}" rows="4" required>${escapeHtml(value)}</textarea>` : `<input id="${fieldId}" name="field:${escapeHtml(field.key)}" value="${escapeHtml(value)}" required>`}</div>`;
+        }).join("") : `<div class="cms-no-fields">${icon("yld-ui-info.webp") ? `<img src="${icon("yld-ui-info.webp")}" alt="">` : ""}<div><strong>این بخش محتوای متنی ندارد</strong><p>برای مدیریت این بخش می‌توانی ترتیب و وضعیت نمایش آن را از صفحه قبل تغییر بدهی.</p></div></div>`}
+        <div class="cms-modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>انصراف</button>${cmsFields.length ? `<button class="btn btn-primary" type="submit">ذخیره و انتشار</button>` : ""}</div>
+      </form>
+    ` : "";
+    const cmsResetPage = cmsSchema(itemId);
     const addressModal = `
       <div class="page-title-row"><h2 id="modal-title">${address ? "ویرایش آدرس" : "آدرس جدید"}</h2>${closeButton}</div>
-      <form data-form="address">
+        <section class="address-map modal-address-map"><img src="${icon("yld-map-pin.webp")}" alt=""><div><strong>انتخاب نقطه روی نقشه</strong><span class="muted small">موقعیت دقیق برای تحویل سریع‌تر</span></div><button type="button" class="btn btn-secondary btn-sm" data-toast="موقعیت روی نقشه انتخاب شد">انتخاب موقعیت</button></section>
+        <form data-form="address">
         <input type="hidden" name="id" value="${escapeHtml(address?.id || "")}">
-        <div class="field"><label for="address-title">عنوان آدرس</label><input id="address-title" name="title" value="${escapeHtml(address?.title || "")}" placeholder="خانه، محل کار..." required></div>
+          <div class="form-grid"><div class="field"><label for="address-title">عنوان آدرس</label><input id="address-title" name="title" value="${escapeHtml(address?.title || "")}" placeholder="خانه، محل کار..." required></div><div class="field"><label for="address-phone">شماره تحویل‌گیرنده</label><input id="address-phone" name="phone" inputmode="tel" autocomplete="tel" value="${escapeHtml(address?.recipientPhone || state.user.phone || "")}" placeholder="۰۹۱۲ ۳۴۵ ۶۷۸۹"></div></div>
         <div class="field"><label for="address-value">نشانی کامل</label><textarea id="address-value" name="address" rows="4" placeholder="خیابان، کوچه، پلاک و واحد" required>${escapeHtml(address?.value || "")}</textarea></div>
-        <div class="field"><label for="address-phone">شماره تحویل‌گیرنده</label><input id="address-phone" name="phone" inputmode="tel" autocomplete="tel" value="${escapeHtml(address?.recipientPhone || state.user.phone || "")}" placeholder="۰۹۱۲ ۳۴۵ ۶۷۸۹"></div>
+          <div class="form-grid address-detail-grid"><div class="field"><label for="address-plaque">پلاک</label><input id="address-plaque" name="plaque" inputmode="numeric"></div><div class="field"><label for="address-floor">طبقه</label><input id="address-floor" name="floor" inputmode="numeric"></div><div class="field"><label for="address-unit">واحد</label><input id="address-unit" name="unit" inputmode="numeric"></div><div class="field"><label for="address-postal">کد پستی</label><input id="address-postal" name="postal" inputmode="numeric" maxlength="10"></div></div>
+          <div class="field"><label for="address-note">توضیحات تکمیلی</label><input id="address-note" name="note" placeholder="نشانه نزدیک یا توضیح در ورودی"></div>
         <button class="btn btn-primary btn-block" type="submit">${address ? "ذخیره تغییرات" : "ذخیره آدرس"}</button>
       </form>
     `;
@@ -718,6 +1011,58 @@
         <div class="page-title-row"><h2 id="modal-title">حذف کارت بانکی</h2>${closeButton}</div>
         <p>کارت ${escapeHtml(card?.bank || "انتخاب‌شده")} با شماره پایانی <b dir="ltr">${escapeHtml(card?.last4 || "—")}</b> حذف شود؟</p>
         <div class="action-grid"><button type="button" class="btn btn-secondary" data-close-modal>انصراف</button><button type="button" class="btn btn-danger" data-confirm-delete-card="${escapeHtml(itemId)}">حذف کارت</button></div>
+      `,
+      notification: `
+        <div class="page-title-row"><h2 id="modal-title">${notificationDetail[0]}</h2>${closeButton}</div>
+        <section class="message-detail"><span class="message-detail-icon"><img src="${icon(notificationDetail[2])}" alt=""></span><p>${notificationDetail[1]}</p><div class="message-detail-meta"><span>امروز</span><span>مرکز پیام یولدا</span></div></section>
+        <button type="button" class="btn btn-primary btn-block" data-close-modal>متوجه شدم</button>
+      `,
+      faq: `
+        <div class="page-title-row"><h2 id="modal-title">${faqDetail[0]}</h2>${closeButton}</div>
+        <section class="faq-detail"><span class="faq-detail-mark">؟</span><p>${faqDetail[1]}</p><div class="support-note">اگر هنوز پاسخ نگرفتی، از بخش «ثبت درخواست» با پشتیبانی یولدا در تماس باش.</div></section>
+        <button type="button" class="btn btn-primary btn-block" data-close-modal>بستن پاسخ</button>
+      `,
+      "active-devices": `
+        <div class="page-title-row"><h2 id="modal-title">دستگاه‌های فعال</h2>${closeButton}</div>
+        <p class="muted small">نوع دستگاه از User-Agent مرورگر تشخیص داده می‌شود.</p>
+        <section class="device-list"><article class="device-row is-current"><img src="${icon("yld-profile-active-devices.webp")}" alt=""><span><strong>${currentDevice.kind} · ${currentDevice.os}</strong><small>${currentDevice.browser} · همین حالا</small></span><span class="badge success">این دستگاه</span></article><article class="device-row"><img src="${icon("yld-auth-phone-verified.webp")}" alt=""><span><strong>موبایل · Android</strong><small>Google Chrome · آخرین فعالیت ۲ روز پیش</small></span><span class="badge">فعال</span></article></section>
+        <button type="button" class="btn btn-secondary btn-block" data-close-modal>بستن</button>
+      `,
+      "courier-history": `
+        <div class="page-title-row"><h2 id="modal-title">جزئیات ارسال ${escapeHtml(itemId || "DL-7814")}</h2>${closeButton}</div>
+        <section class="card summary-card"><div class="summary-row"><span>مسیر</span><b>رومانو ← خیابان دانشگاه</b></div><div class="summary-row"><span>زمان پذیرش</span><span>۱۲:۱۸</span></div><div class="summary-row"><span>زمان تحویل</span><span>۱۲:۴۰</span></div><div class="summary-row"><span>مسافت</span><span>۴٫۲ کیلومتر</span></div><div class="summary-row total"><span>درآمد پیک</span><span>۱۱۰٬۰۰۰ تومان</span></div></section>
+        <button type="button" class="btn btn-primary btn-block" data-close-modal>بستن</button>
+      `,
+      "vendor-order": `
+        <div class="page-title-row"><h2 id="modal-title">مدیریت سفارش ${escapeHtml(itemId || "#YL-2462")}</h2>${closeButton}</div>
+        <section class="card summary-card"><div class="summary-row"><span>مشتری</span><b>سارا محمدی</b></div><div class="summary-row"><span>اقلام</span><span>پیتزا مخصوص × ۱ · نوشابه × ۱</span></div><div class="summary-row"><span>تحویل</span><span>پیک یولدا · ۱۸ دقیقه</span></div><div class="summary-row total"><span>مبلغ</span><span>۷۹۸٬۰۰۰ تومان</span></div></section>
+        <form data-form="vendor-order" class="modal-form"><div class="field select-field"><label for="vendor-order-status">وضعیت سفارش</label><select id="vendor-order-status" name="status"><option>پذیرفته شد</option><option>در حال آماده‌سازی</option><option>آماده تحویل</option></select></div><button class="btn btn-primary btn-block" type="submit">ذخیره وضعیت</button></form>
+      `,
+      "vendor-product": `
+        <div class="page-title-row"><h2 id="modal-title">${itemId ? "ویرایش محصول" : "محصول جدید"}</h2>${closeButton}</div>
+        <form data-form="vendor-product"><div class="form-grid"><div class="field"><label for="product-name">نام محصول</label><input id="product-name" name="name" value="${itemId ? "پیتزا مخصوص رومانو" : ""}" required></div><div class="field"><label for="product-price">قیمت (تومان)</label><input id="product-price" name="price" inputmode="numeric" value="${itemId ? "۴۸۰۰۰۰" : ""}" required></div></div><div class="field"><label for="product-description">توضیح کوتاه</label><textarea id="product-description" name="description" rows="3" required>${itemId ? "خمیر تازه، پنیر و مواد منتخب" : ""}</textarea></div><div class="field select-field"><label for="product-category">دسته‌بندی</label><select id="product-category" name="category"><option>پیتزا</option><option>پیش‌غذا</option><option>نوشیدنی</option></select></div><button class="btn btn-primary btn-block" type="submit">ذخیره محصول</button></form>
+      `,
+      "ops-new-order": `
+        <div class="page-title-row"><h2 id="modal-title">ثبت سفارش جدید</h2>${closeButton}</div>
+        <form data-form="ops-new-order"><div class="form-grid"><div class="field"><label for="ops-customer">شماره مشتری</label><input id="ops-customer" name="customer" inputmode="tel" required></div><div class="field select-field"><label for="ops-service">سرویس</label><select id="ops-service" name="service"><option>رستوران</option><option>سوپرمارکت</option><option>داروخانه</option></select></div><div class="field"><label for="ops-vendor">فروشنده</label><input id="ops-vendor" name="vendor" placeholder="نام فروشنده" required></div><div class="field"><label for="ops-amount">مبلغ</label><input id="ops-amount" name="amount" inputmode="numeric" required></div></div><div class="field"><label for="ops-order-note">یادداشت اپراتور</label><textarea id="ops-order-note" name="note" rows="3"></textarea></div><button class="btn btn-primary btn-block" type="submit">ثبت سفارش</button></form>
+      `,
+      "ops-order": `
+        <div class="page-title-row"><h2 id="modal-title">جزئیات سفارش ${escapeHtml(itemId || "#YL-2458")}</h2>${closeButton}</div>
+        <section class="order-modal-grid"><article class="card summary-card"><div class="summary-row"><span>فروشنده</span><b>پیتزا رومانو</b></div><div class="summary-row"><span>مشتری</span><b>سارا محمدی</b></div><div class="summary-row"><span>پیک</span><span>علی رضایی · YD-142</span></div><div class="summary-row total"><span>مبلغ</span><span>۷۴۹٬۰۰۰ تومان</span></div></article><article class="card timeline"><div class="timeline-item is-done"><span class="timeline-dot"></span><h3>ثبت و پرداخت</h3></div><div class="timeline-item is-current"><span class="timeline-dot"></span><h3>در حال ارسال</h3></div><div class="timeline-item"><span class="timeline-dot"></span><h3>تحویل</h3></div></article></section>
+        <button type="button" class="btn btn-primary btn-block" data-close-modal>بستن جزئیات</button>
+      `,
+      "ops-chat": `
+        <div class="page-title-row"><h2 id="modal-title">گفت‌وگو ${escapeHtml(itemId || "SUP-1042")}</h2>${closeButton}</div>
+        <section class="chat-thread modal-chat"><article class="chat-message is-user"><strong>سارا محمدی</strong><p>سفارشم دیر رسیده، لطفاً وضعیت پیک را بررسی کنید.</p><span>۱۸:۳۸</span></article><article class="chat-message is-support"><strong>اپراتور یولدا</strong><p>در حال بررسی مسیر پیک هستیم.</p><span>۱۸:۴۰</span></article></section><form class="chat-composer" data-form="ops-chat"><input name="reply" aria-label="پاسخ به کاربر" placeholder="پاسخ بنویس..." required><button class="btn btn-primary" type="submit">ارسال</button></form>
+      `,
+      "cms-block": cmsBlockModal,
+      "cms-reset": cmsResetPage ? `
+        <div class="page-title-row"><h2 id="modal-title">بازنشانی ${escapeHtml(cmsResetPage.title)}</h2>${closeButton}</div>
+        <section class="cms-reset-warning"><img src="${icon("yld-ui-refresh.webp")}" alt=""><div><strong>همه تغییرات این صفحه پاک می‌شوند</strong><p>متن‌های سفارشی، وضعیت نمایش و ترتیب بخش‌ها به حالت اولیه برمی‌گردند. سایر صفحات تغییری نمی‌کنند.</p></div></section>
+        <div class="action-grid"><button type="button" class="btn btn-secondary" data-close-modal>انصراف</button><button type="button" class="btn btn-danger" data-confirm-cms-reset="${escapeHtml(itemId)}">بازنشانی این صفحه</button></div>
+      ` : "",
+      "ops-action": `
+        <div class="page-title-row"><h2 id="modal-title">${escapeHtml(opsActionTitles[itemId] || "جزئیات عملیات")}</h2>${closeButton}</div><section class="ops-action-detail">${itemId.includes("location") ? `<div class="address-map">${`<img src="${icon("yld-map-marker-courier.webp")}" alt="">`}<strong>پیک در خیابان دانشگاه</strong></div>` : `<img src="${icon("yld-ui-info.webp")}" alt=""><p>اطلاعات این بخش آماده بررسی است. تغییرات پس از تأیید اپراتور ثبت می‌شوند.</p>`}</section><button type="button" class="btn btn-primary btn-block" data-close-modal>تأیید و بستن</button>
       `,
       "new-card": `
         <div class="page-title-row"><h2 id="modal-title">افزودن کارت بانکی</h2>${closeButton}</div>
@@ -783,6 +1128,31 @@
     if (path === "/search") {
       const searchInput = document.getElementById("global-search");
       if (searchInput) searchInput.addEventListener("input", updateSearchResults);
+    }
+
+    const amountInput = document.getElementById("topup-amount");
+    if (amountInput) {
+      const formatAmount = () => {
+        const digits = toEnglishDigits(amountInput.value).replace(/\D/g, "").slice(0, 12);
+        amountInput.value = digits ? Number(digits).toLocaleString("en-US") : "";
+      };
+      formatAmount();
+      amountInput.addEventListener("input", formatAmount);
+    }
+
+    const tableSearch = document.querySelector("[data-table-search]");
+    if (tableSearch) {
+      tableSearch.addEventListener("input", () => {
+        const query = tableSearch.value.trim().toLowerCase();
+        let visible = 0;
+        document.querySelectorAll("[data-search-row]").forEach((row) => {
+          const matches = (row.dataset.searchText || "").toLowerCase().includes(query);
+          row.hidden = !matches;
+          if (matches) visible += 1;
+        });
+        const empty = document.querySelector("[data-table-search-empty]");
+        if (empty) empty.hidden = visible > 0;
+      });
     }
 
     if (path === "/icons") {
@@ -875,6 +1245,11 @@
       const tags = (item.dataset.filterTags || "").split(" ");
       item.classList.toggle("hidden", value !== "all" && !tags.includes(value));
     });
+    const visibleItems = [...document.querySelectorAll(`[data-filter-item="${group}"]`)].filter((item) => !item.classList.contains("hidden"));
+    const counter = document.querySelector(`[data-filter-count="${group}"]`);
+    if (counter) counter.textContent = `${number(visibleItems.length)} پیشنهاد`;
+    const emptyState = document.querySelector(`[data-filter-empty="${group}"]`);
+    if (emptyState) emptyState.hidden = visibleItems.length > 0;
   }
 
   function selectAddress(id) {
@@ -928,12 +1303,54 @@
   }
 
   document.addEventListener("click", async (event) => {
-    const target = event.target.closest("[data-route], [data-back], [data-add], [data-fav], [data-qty], [data-clear-cart], [data-cart-service], [data-pay], [data-permission], [data-theme-option], [data-theme-toggle], [data-toggle], [data-setting-toggle], [data-settings-save], [data-modal], [data-edit-address], [data-delete-address], [data-default-address], [data-delete-card], [data-default-card], [data-logout], [data-mark-read], [data-resend-otp], [data-close-modal], [data-close-modal-backdrop], [data-confirm-cancel], [data-confirm-delete-address], [data-confirm-delete-card], [data-icon-category], [data-copy-icon], [data-copy-value], [data-share], [data-amount], [data-refresh], [data-bill-type], [data-search-service], [data-ai-prompt], [data-ai-feedback], [data-toast], .chip");
+    const target = event.target.closest("[data-route], [data-back], [data-add], [data-fav], [data-qty], [data-clear-cart], [data-cart-service], [data-pay], [data-permission], [data-theme-option], [data-theme-toggle], [data-toggle], [data-setting-toggle], [data-settings-save], [data-modal], [data-edit-address], [data-delete-address], [data-default-address], [data-delete-card], [data-default-card], [data-logout], [data-mark-read], [data-resend-otp], [data-close-modal], [data-close-modal-backdrop], [data-confirm-cancel], [data-confirm-delete-address], [data-confirm-delete-card], [data-confirm-cms-reset], [data-icon-category], [data-copy-icon], [data-copy-value], [data-share], [data-amount], [data-refresh], [data-bill-type], [data-search-service], [data-ai-step-choice], [data-ai-prompt], [data-ai-feedback], [data-ai-refine], [data-scroll-to], [data-cms-select], [data-cms-preview], [data-cms-toggle], [data-cms-move], [data-toast], .chip");
     if (!target) return;
 
     if (target.hasAttribute("data-close-modal-backdrop") && event.target !== target) return;
     event.preventDefault();
 
+    if (target.dataset.cmsSelect) {
+      state.cmsActivePage = target.dataset.cmsSelect;
+      ensureCmsPage(state.cmsActivePage);
+      saveState();
+      return render();
+    }
+    if (target.dataset.cmsPreview) return navigate(target.dataset.cmsPreview);
+    if (target.dataset.cmsToggle) {
+      const pageId = target.dataset.cmsPageId;
+      const blockId = target.dataset.cmsToggle;
+      const pageState = ensureCmsPage(pageId);
+      if (!pageState?.blocks[blockId]) return;
+      pageState.blocks[blockId].visible = pageState.blocks[blockId].visible === false;
+      recordCmsAudit(pageState.blocks[blockId].visible ? "نمایش بخش" : "مخفی‌کردن بخش", pageId, blockId);
+      saveState();
+      render();
+      return showToast(pageState.blocks[blockId].visible ? "بخش دوباره نمایش داده شد" : "بخش از خروجی مخفی شد");
+    }
+    if (target.dataset.cmsMove) {
+      const pageId = target.dataset.cmsPageId;
+      const blockId = target.dataset.cmsBlockId;
+      const pageState = ensureCmsPage(pageId);
+      const fromIndex = pageState?.order.indexOf(blockId) ?? -1;
+      const toIndex = target.dataset.cmsMove === "up" ? fromIndex - 1 : fromIndex + 1;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= pageState.order.length) return;
+      pageState.order.splice(fromIndex, 1);
+      pageState.order.splice(toIndex, 0, blockId);
+      recordCmsAudit("تغییر ترتیب بخش", pageId, blockId);
+      saveState();
+      render();
+      return showToast("ترتیب صفحه به‌روزرسانی شد");
+    }
+    if (target.dataset.confirmCmsReset) {
+      const pageId = target.dataset.confirmCmsReset;
+      delete state.cms.pages[pageId];
+      recordCmsAudit("بازنشانی صفحه", pageId);
+      saveState();
+      closeModal();
+      render();
+      return showToast("چیدمان و محتوای صفحه بازنشانی شد");
+    }
+    if (target.dataset.aiStepChoice) return advanceAiQuiz(target);
     if (target.dataset.add) return addToCart(target.dataset.add);
     if (target.dataset.fav) return toggleFavorite(target.dataset.fav);
     if (target.dataset.qty) return changeQuantity(target.dataset.id, Number(target.dataset.qty));
@@ -1009,7 +1426,7 @@
       render();
       return showToast("همه اعلان‌ها خوانده شدند");
     }
-    if (target.dataset.modal) return openModal(target.dataset.modal);
+    if (target.dataset.modal) return openModal(target.dataset.modal, target.dataset.id || "");
     if (target.hasAttribute("data-close-modal") || target.hasAttribute("data-close-modal-backdrop")) return closeModal();
     if (target.hasAttribute("data-confirm-cancel")) {
       closeModal();
@@ -1049,11 +1466,15 @@
     }
     if (target.dataset.amount) {
       const input = document.getElementById("topup-amount");
-      if (input) input.value = target.dataset.amount;
+      if (input) input.value = Number(target.dataset.amount).toLocaleString("en-US");
       document.querySelectorAll("[data-amount]").forEach((button) => button.classList.toggle("is-active", button === target));
       return;
     }
     if (target.hasAttribute("data-refresh")) return window.location.reload();
+    if (target.dataset.scrollTo) {
+      document.getElementById(target.dataset.scrollTo)?.scrollIntoView({ behavior: state.settings.accessibility.reduceMotion ? "auto" : "smooth", block: "start" });
+      return;
+    }
     if (target.dataset.billType) {
       document.getElementById("bill-id")?.focus();
       return showToast(`${target.dataset.billType} انتخاب شد`);
@@ -1066,13 +1487,17 @@
     if (target.dataset.aiPrompt) {
       const field = document.getElementById("ai-query");
       if (field) {
+        const requestedService = target.dataset.aiService;
+        const serviceInput = requestedService ? document.querySelector(`.ai-service-picker input[value="${requestedService}"]`) : null;
+        if (serviceInput) serviceInput.checked = true;
         field.value = target.dataset.aiPrompt;
         field.focus();
       } else {
-        await runAiFromText(target.dataset.aiPrompt);
+        await runAiFromText(target.dataset.aiPrompt, target.dataset.aiService || "");
       }
       return;
     }
+    if (target.dataset.aiRefine) return refineAiRecommendation(target.dataset.aiRefine);
     if (target.dataset.aiFeedback) {
       const id = target.dataset.id;
       const value = target.dataset.aiFeedback === "up" ? 1 : -1;
@@ -1096,6 +1521,56 @@
       return navigateBack();
     }
     if (target.dataset.route) navigate(target.dataset.route);
+  });
+
+  let cmsDraggedBlockId = "";
+  let cmsDraggedPageId = "";
+
+  document.addEventListener("dragstart", (event) => {
+    const card = event.target.closest("[data-cms-drag]");
+    if (!card || event.target.closest("button:not(.cms-drag-handle), a, input, textarea, select")) return;
+    cmsDraggedBlockId = card.dataset.cmsDrag;
+    cmsDraggedPageId = card.dataset.cmsPageId;
+    card.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `${cmsDraggedPageId}:${cmsDraggedBlockId}`);
+  });
+
+  document.addEventListener("dragover", (event) => {
+    const card = event.target.closest("[data-cms-drag]");
+    if (!card || !cmsDraggedBlockId || card.dataset.cmsPageId !== cmsDraggedPageId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    document.querySelectorAll(".cms-block-card.is-drop-target").forEach((item) => item.classList.remove("is-drop-target"));
+    if (card.dataset.cmsDrag !== cmsDraggedBlockId) card.classList.add("is-drop-target");
+  });
+
+  document.addEventListener("drop", (event) => {
+    const targetCard = event.target.closest("[data-cms-drag]");
+    if (!targetCard || !cmsDraggedBlockId || targetCard.dataset.cmsPageId !== cmsDraggedPageId) return;
+    event.preventDefault();
+    const pageState = ensureCmsPage(cmsDraggedPageId);
+    const fromIndex = pageState?.order.indexOf(cmsDraggedBlockId) ?? -1;
+    const targetIndex = pageState?.order.indexOf(targetCard.dataset.cmsDrag) ?? -1;
+    if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return;
+    const targetRect = targetCard.getBoundingClientRect();
+    const insertAfter = event.clientY > targetRect.top + targetRect.height / 2;
+    pageState.order.splice(fromIndex, 1);
+    let destination = pageState.order.indexOf(targetCard.dataset.cmsDrag) + (insertAfter ? 1 : 0);
+    destination = Math.max(0, Math.min(destination, pageState.order.length));
+    pageState.order.splice(destination, 0, cmsDraggedBlockId);
+    recordCmsAudit("جابجایی با کشیدن", cmsDraggedPageId, cmsDraggedBlockId);
+    saveState();
+    cmsDraggedBlockId = "";
+    cmsDraggedPageId = "";
+    render();
+    showToast("ترتیب جدید منتشر شد");
+  });
+
+  document.addEventListener("dragend", () => {
+    cmsDraggedBlockId = "";
+    cmsDraggedPageId = "";
+    document.querySelectorAll(".cms-block-card.is-dragging, .cms-block-card.is-drop-target").forEach((item) => item.classList.remove("is-dragging", "is-drop-target"));
   });
 
   document.addEventListener("submit", async (event) => {
@@ -1151,9 +1626,13 @@
     }
     if (type === "checkout-time") return navigate("/payment");
     if (type === "ai") {
-      const query = new FormData(form).get("query")?.toString().trim() || "";
+      const formData = new FormData(form);
+      const query = formData.get("query")?.toString().trim() || "";
       if (query.length < 3) return showToast("کمی بیشتر درباره چیزی که می‌خواهی بنویس");
-      return runAiFromText(query);
+      state.aiDraft = { query, service: formData.get("service")?.toString() || "food" };
+      state.aiQuizSelections = { service: state.aiDraft.service };
+      saveState();
+      return navigate("/ai/quiz");
     }
     if (type === "ai-quiz") return runAiFromForm(form);
     if (type === "ai-preferences") {
@@ -1196,8 +1675,11 @@
       const values = Object.fromEntries(new FormData(form).entries());
       const id = `address-${Date.now()}`;
       const addressParts = [values.address?.toString().trim() || ""];
+      if (values.plaque?.toString().trim()) addressParts.push(`پلاک ${values.plaque.toString().trim()}`);
       if (values.floor?.toString().trim()) addressParts.push(`طبقه ${values.floor.toString().trim()}`);
       if (values.unit?.toString().trim()) addressParts.push(`واحد ${values.unit.toString().trim()}`);
+      if (values.postal?.toString().trim()) addressParts.push(`کدپستی ${values.postal.toString().trim()}`);
+      if (values.note?.toString().trim()) addressParts.push(values.note.toString().trim());
       state.addresses.push({
         id,
         title: values.title?.toString() || "آدرس جدید",
@@ -1228,7 +1710,9 @@
     if (type === "settings-language") {
       state.settings.language = new FormData(form).get("language")?.toString() || "fa";
       saveState();
-      return showToast("زبان برنامه ذخیره شد");
+      applyLanguage();
+      render();
+      return showToast(state.settings.language === "en" ? "Language changed to English" : "زبان برنامه ذخیره شد");
     }
     if (type === "support-ticket") {
       setBusy(submitButton, true, "در حال ارسال...");
@@ -1251,24 +1735,55 @@
       return navigate("/tracking");
     }
     if (type === "bill") return showToast("قبض استعلام شد؛ مبلغ ۲۳۸٬۰۰۰ تومان");
+    if (type === "cms-block") {
+      const values = new FormData(form);
+      const pageId = values.get("pageId")?.toString() || "";
+      const blockId = values.get("blockId")?.toString() || "";
+      const pageState = ensureCmsPage(pageId);
+      const blockDefinition = cmsSchema(pageId)?.blocks.find((block) => block.id === blockId);
+      if (!pageState?.blocks[blockId] || !blockDefinition) return showToast("بخش محتوا پیدا نشد");
+      const nextFields = {};
+      blockDefinition.fields.forEach((field) => {
+        const value = values.get(`field:${field.key}`)?.toString().trim();
+        if (value !== undefined) nextFields[field.key] = value;
+      });
+      pageState.blocks[blockId].fields = nextFields;
+      recordCmsAudit("ویرایش و انتشار محتوا", pageId, blockId);
+      saveState();
+      closeModal();
+      render();
+      return showToast("محتوا ذخیره و روی صفحه منتشر شد");
+    }
     if (["vendor-settings", "courier-profile", "ops-settings"].includes(type)) return showToast("تغییرات ذخیره شد");
+    if (type === "reservation") return showToast("رزرو میز با موفقیت ثبت شد");
+    if (["vendor-order", "vendor-product", "ops-new-order", "ops-chat"].includes(type)) {
+      closeModal();
+      return showToast(type === "ops-chat" ? "پاسخ برای کاربر ارسال شد" : "اطلاعات با موفقیت ثبت شد");
+    }
     if (type === "discount") {
       closeModal();
       return showToast("کد تخفیف آزمایشی اعمال شد");
     }
     if (type === "address") {
       const values = Object.fromEntries(new FormData(form).entries());
+      const addressParts = [values.address?.toString().trim() || ""];
+      if (values.plaque?.toString().trim()) addressParts.push(`پلاک ${values.plaque.toString().trim()}`);
+      if (values.floor?.toString().trim()) addressParts.push(`طبقه ${values.floor.toString().trim()}`);
+      if (values.unit?.toString().trim()) addressParts.push(`واحد ${values.unit.toString().trim()}`);
+      if (values.postal?.toString().trim()) addressParts.push(`کدپستی ${values.postal.toString().trim()}`);
+      if (values.note?.toString().trim()) addressParts.push(values.note.toString().trim());
+      const fullAddress = addressParts.filter(Boolean).join("، ");
       const existing = state.addresses.find((item) => item.id === values.id);
       if (existing) {
         existing.title = values.title?.toString() || existing.title;
-        existing.value = values.address?.toString() || existing.value;
+        existing.value = fullAddress || existing.value;
         existing.recipientPhone = values.phone?.toString().trim() ? formatIranPhone(values.phone) : "";
       } else {
         const id = `address-${Date.now()}`;
         state.addresses.push({
           id,
           title: values.title?.toString() || "آدرس جدید",
-          value: values.address?.toString() || "",
+          value: fullAddress,
           recipientPhone: values.phone?.toString().trim() ? formatIranPhone(values.phone) : "",
           kind: "other"
         });
@@ -1303,6 +1818,7 @@
   }, true);
 
   document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-ai-step-choice]")) advanceAiQuiz(event.target);
     if (event.target.matches(".select-card input[type='radio']")) {
       const group = event.target.name;
       const scope = event.target.closest("form") || document;

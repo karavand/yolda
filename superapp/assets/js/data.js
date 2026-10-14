@@ -2,6 +2,7 @@
   "use strict";
 
   const icons = [
+    "f7a944f4-3c73-4cf4-9afe-a9269806a251.webp",
     "yld-auth-face-id.webp",
     "yld-auth-fingerprint.webp",
     "yld-auth-guest.webp",
@@ -96,6 +97,24 @@
     "yld-map-share-location.webp",
     "yld-map-waypoint.webp",
     "yld-map-zoom-in.webp",
+    "yld-order-cancel.webp",
+    "yld-order-delivered.webp",
+    "yld-order-eta-changed.webp",
+    "yld-order-finding-courier.webp",
+    "yld-order-history.webp",
+    "yld-order-picked-up.webp",
+    "yld-order-rejected.webp",
+    "yld-order-returned.webp",
+    "yld-order-substitution-approved.webp",
+    "yld-order-timeline.webp",
+    "yld-pay-bank-card.webp",
+    "yld-pay-cart-filled.webp",
+    "yld-pay-coupon-apply.webp",
+    "yld-pay-free-delivery.webp",
+    "yld-pay-payment-failed.webp",
+    "yld-pay-refund-pending.webp",
+    "yld-pay-standard-delivery.webp",
+    "yld-pay-tax.webp",
     "yld-pharm-blood-pressure.webp",
     "yld-pharm-otc.webp",
     "yld-pharm-prescription-approved.webp",
@@ -158,8 +177,8 @@
     { id: "pharmacy", title: "داروخانه", route: "/pharmacy", icon: "yld-discover-pharmacy.webp", color: "#ffe3ea" },
     { id: "courier", title: "ارسال بسته", route: "/delivery", icon: "yld-brand-service-courier.webp", color: "#e1f4ff" },
     { id: "wallet", title: "کیف پول", route: "/wallet", icon: "yld-profile-wallet.webp", color: "#efe4ff" },
-    { id: "bills", title: "پرداخت قبض", route: "/bills", icon: "yld-profile-transactions.webp", color: "#e8f7ff" },
-    { id: "reservation", title: "رزرو سه‌بعدی", route: "/reservation", icon: "yld-brand-service-reservation-3d.webp", color: "#f2e8ff", soon: true },
+    { id: "bills", title: "پرداخت قبض", route: "/bills", icon: "yld-pay-tax.webp", color: "#e8f7ff", soon: true },
+    { id: "reservation", title: "رزرو سه‌بعدی", route: "/reservation", icon: "yld-brand-service-reservation-3d.webp", color: "#f2e8ff" },
     { id: "more", title: "بیشتر", route: "/services", icon: "yld-ui-categories.webp", color: "#f1e7ff" }
   ];
 
@@ -290,6 +309,118 @@
     { id: "account", title: "حساب و امنیت", icon: "yld-profile-account-security.webp", priority: "حساب" }
   ];
 
+  const cmsField = (key, label, defaultValue, type = "text") => ({ key, label, default: defaultValue, type });
+  const cmsBlock = (id, label, description, icon, fields = []) => ({ id, label, description, icon, fields });
+  const serviceCmsPage = (id, title, serviceLabel, hero) => ({
+    id,
+    title,
+    route: `/${id}`,
+    icon: id === "food" ? "yld-discover-restaurant.webp" : id === "grocery" ? "yld-brand-service-grocery.webp" : "yld-discover-pharmacy.webp",
+    blocks: [
+      cmsBlock("intro", "عنوان صفحه", "تیتر، معرفی و دسترسی علاقه‌مندی‌ها", "yld-ui-edit.webp", [
+        cmsField("eyebrow", "بالانویس", `یولدا ${serviceLabel}`),
+        cmsField("title", "عنوان", "امروز چی لازم داری؟")
+      ]),
+      cmsBlock("search", "جست‌وجوی سرویس", "کادر جست‌وجوی تمام‌عرض", "yld-discover-vendor-search.webp", [
+        cmsField("placeholder", "متن راهنمای جست‌وجو", `جست‌وجو در ${serviceLabel}...`)
+      ]),
+      cmsBlock("hero", "بنر اصلی", "پیام و اقدام اصلی این سرویس", "yld-discover-recommended.webp", [
+        cmsField("badge", "نشان", hero.badge),
+        cmsField("title", "عنوان بنر", hero.title),
+        cmsField("body", "متن بنر", hero.body, "textarea"),
+        cmsField("cta", "متن دکمه", id === "pharmacy" ? "ارسال نسخه" : "سفارش بده")
+      ]),
+      cmsBlock("categories", "دسته‌بندی‌ها", "دسته‌ها و فیلترهای سریع", "yld-ui-categories.webp", [cmsField("title", "عنوان بخش", "دسته‌بندی‌ها")]),
+      cmsBlock("vendors", "فروشندگان", "فروشگاه‌ها یا مراکز نزدیک", "yld-discover-nearest.webp", [
+        cmsField("title", "عنوان بخش", id === "food" ? "رستوران‌های محبوب" : id === "grocery" ? "فروشگاه‌های نزدیک" : "داروخانه‌های فعال"),
+        cmsField("cta", "متن لینک", "مشاهده همه")
+      ]),
+      cmsBlock("offers", "پیشنهادهای ویژه", "محصولات ویژه دو ردیفی", "yld-discover-discounted.webp", [cmsField("title", "عنوان بخش", "پیشنهادهای ویژه")])
+    ]
+  });
+
+  const cmsPages = [
+    {
+      id: "home", title: "صفحه اصلی", route: "/home", icon: "yld-ui-categories.webp",
+      blocks: [
+        cmsBlock("intro", "خوش‌آمدگویی", "پیام شخصی و وضعیت سرویس", "yld-profile-personal-info.webp", [
+          cmsField("eyebrow", "بالانویس", "امروز · ارومیه"),
+          cmsField("title", "عنوان اصلی", "سلام، امروز چه کاری برات انجام بدیم؟"),
+          cmsField("body", "متن توضیحی", "از خرید روزانه تا یک غذای خوب؛ سریع‌ترین مسیر را برایت آماده کرده‌ایم.", "textarea")
+        ]),
+        cmsBlock("search", "جست‌وجوی اصلی", "جست‌وجوی تمام‌عرض صفحه خانه", "yld-discover-vendor-search.webp", [cmsField("placeholder", "متن راهنمای جست‌وجو", "جست‌وجوی غذا، کالا، داروخانه یا سرویس...")]),
+        cmsBlock("services", "سرویس‌های یولدا", "کارت‌های سرویس‌های اصلی", "yld-ui-view-grid.webp", [
+          cmsField("eyebrow", "بالانویس", "همه‌چیز در یک جا"), cmsField("title", "عنوان بخش", "سرویس‌های یولدا"), cmsField("cta", "متن لینک", "مشاهده همه")
+        ]),
+        cmsBlock("smart-ai", "پیشنهاد هوشمند", "بنر یولدا AI و ادامه خرید", "yld-discover-recommended.webp", [
+          cmsField("badge", "نشان", "پیشنهاد هوشمند یولدا ✨"), cmsField("title", "عنوان بنر", "انتخاب سخت را بسپار به یولدا"),
+          cmsField("body", "متن بنر", "بودجه، زمان و سلیقه‌ات را می‌فهمیم و بهترین گزینه‌های موجود همین اطراف را پیدا می‌کنیم.", "textarea"), cmsField("cta", "متن دکمه", "شروع پیشنهاد هوشمند")
+        ]),
+        cmsBlock("confidence", "مزیت‌های یولدا", "اعتماد، سرعت و پشتیبانی", "yld-discover-verified.webp"),
+        cmsBlock("promotions", "میانبرهای شهری", "ارسال بسته و کیف پول", "yld-brand-service-courier.webp"),
+        cmsBlock("nearby", "محبوب‌های اطراف", "فروشنده‌های نزدیک با اسلاید خودکار", "yld-discover-popular.webp", [
+          cmsField("eyebrow", "بالانویس", "نزدیک و خوش‌امتیاز"), cmsField("title", "عنوان بخش", "محبوب‌های اطراف شما")
+        ]),
+        cmsBlock("quick-shop", "خرید سریع", "محصولات سوپرمارکتی دو ردیفی", "yld-brand-service-grocery.webp", [
+          cmsField("eyebrow", "بالانویس", "تازه و روزمره"), cmsField("title", "عنوان بخش", "خرید سریع سوپرمارکتی"), cmsField("cta", "متن لینک", "مشاهده بیشتر")
+        ])
+      ]
+    },
+    serviceCmsPage("food", "صفحه رستوران", "رستوران", { badge: "سفارش گرم و تازه", title: "غذای محبوبت، سریع‌تر از همیشه", body: "از رستوران‌های منتخب اطراف سفارش بده و لحظه‌به‌لحظه پیگیری کن." }),
+    serviceCmsPage("grocery", "صفحه سوپرمارکت", "سوپرمارکت", { badge: "خرید روزانه آسان", title: "سوپرمارکت، دم در خانه", body: "کالاهای روزمره را تازه و سریع از فروشگاه‌های نزدیک تحویل بگیر." }),
+    serviceCmsPage("pharmacy", "صفحه داروخانه", "داروخانه", { badge: "سلامت با تأیید داروساز", title: "محصولات سلامت و نسخه آنلاین", body: "نسخه را ارسال کن یا محصولات سلامت را از داروخانه‌های فعال سفارش بده." }),
+    {
+      id: "ai", title: "یولدا AI", route: "/ai", icon: "yld-discover-recommended.webp",
+      blocks: [
+        cmsBlock("context", "راهنمای جریان", "توضیح کوتاه مرحله فعلی", "yld-ui-info.webp"),
+        cmsBlock("hero", "معرفی هوش مصنوعی", "عنوان و توضیح اصلی", "yld-discover-recommended.webp", [
+          cmsField("badge", "نشان", "Yolda AI · جریان تازه"), cmsField("title", "عنوان", "برای همین لحظه، انتخاب مناسب پیدا کن."),
+          cmsField("body", "توضیح", "نیازت را طبیعی بنویس؛ بودجه، زمان، سلیقه و محدودیت غذایی را از متن می‌فهمم و نتیجه را شفاف توضیح می‌دهم.", "textarea")
+        ]),
+        cmsBlock("composer", "شروع پیشنهاد", "فرم درخواست و انتخاب سرویس", "yld-ui-edit.webp", [cmsField("title", "پرسش فرم", "چه چیزی برایت مهم‌تر است؟"), cmsField("cta", "متن دکمه", "ادامه به مرحله تنظیم ←")]),
+        cmsBlock("quick-start", "شروع سریع", "درخواست‌های آماده با آیکن", "yld-discover-express-delivery.webp", [cmsField("eyebrow", "بالانویس", "شروع سریع"), cmsField("title", "عنوان بخش", "یا یکی از این درخواست‌ها را انتخاب کن")]),
+        cmsBlock("actions", "ابزارهای هوشمند", "تنظیم مرحله‌ای، تاریخچه و سلیقه", "yld-ui-settings.webp"),
+        cmsBlock("transparency", "شفافیت پیشنهادها", "نحوه رتبه‌بندی نتایج", "yld-discover-verified.webp", [cmsField("title", "عنوان", "چرا این پیشنهادها قابل اعتمادند؟"), cmsField("body", "توضیح", "امتیاز هر گزینه از شباهت معنایی، بودجه، زمان ارسال، امتیاز کاربران و تنوع انتخاب ساخته می‌شود؛ هیچ قیمت یا کالای ناموجودی ساخته نمی‌شود.", "textarea")])
+      ]
+    },
+    {
+      id: "offers", title: "پیشنهادها", route: "/offers", icon: "yld-discover-discounted.webp",
+      blocks: [
+        cmsBlock("hero", "بنر پیشنهادها", "کمپین اصلی و آمار", "yld-discover-discounted.webp", [
+          cmsField("badge", "نشان", "پیشنهادهای امروز"), cmsField("title", "عنوان", "کمتر پرداخت کن، بیشتر انتخاب کن"),
+          cmsField("body", "توضیح", "تخفیف‌های فعال فروشنده‌های ارومیه، با قیمت شفاف و امکان افزودن مستقیم به سبد.", "textarea"), cmsField("cta", "متن دکمه", "دیدن پیشنهادهای امروز")
+        ]),
+        cmsBlock("filters", "فیلترها", "فیلترهای پیشنهادهای فعال", "yld-ui-filter.webp"),
+        cmsBlock("products", "محصولات تخفیف‌دار", "شبکه پیشنهادهای قابل خرید", "yld-ui-view-grid.webp")
+      ]
+    },
+    {
+      id: "services", title: "همه سرویس‌ها", route: "/services", icon: "yld-ui-view-grid.webp",
+      blocks: [
+        cmsBlock("intro", "عنوان سرویس‌ها", "عنوان و محدوده سرویس‌دهی", "yld-ui-edit.webp", [cmsField("eyebrow", "بالانویس", "سوپراپلیکیشن یولدا"), cmsField("title", "عنوان", "همه سرویس‌ها")]),
+        cmsBlock("active", "سرویس‌های فعال", "سرویس‌های آماده استفاده", "yld-ui-check.webp", [cmsField("title", "عنوان", "فعال")]),
+        cmsBlock("upcoming", "سرویس‌های آینده", "قابلیت‌های در نقشه راه", "yld-ui-refresh.webp", [cmsField("title", "عنوان", "به‌زودی")])
+      ]
+    },
+    {
+      id: "about", title: "درباره یولدا", route: "/about", icon: "yld-profile-about.webp",
+      blocks: [
+        cmsBlock("hero", "معرفی برند", "لوگو و پیام اصلی برند", "yld-profile-about.webp", [cmsField("badge", "نسخه/نشان", "نسخه وب ۳.۱.۲"), cmsField("title", "عنوان", "یولدا؛ شهر در دست تو"), cmsField("body", "توضیح", "یک تجربه یکپارچه برای سفارش، خرید، سلامت، پرداخت و خدمات روزمره ارومیه.", "textarea")]),
+        cmsBlock("stats", "آمار محصول", "خلاصه قابلیت‌ها و دسترس‌پذیری", "yld-discover-best-seller.webp"),
+        cmsBlock("story", "داستان و ارزش‌ها", "دلایل و ارزش‌های محصول", "yld-discover-verified.webp", [cmsField("eyebrow", "بالانویس", "چرا یولدا؟"), cmsField("title", "عنوان", "ساخته‌شده برای زندگی شهری واقعی"), cmsField("body", "توضیح", "یولدا سرویس‌های محلی را در یک رابط سریع، فارسی، دسترس‌پذیر و قابل‌نصب کنار هم می‌آورد؛ با تمرکز بر شفافیت، انتخاب و پشتیبانی نزدیک.", "textarea")]),
+        cmsBlock("links", "دسترسی پشتیبانی", "پیوند به مرکز پشتیبانی", "yld-profile-about.webp")
+      ]
+    },
+    {
+      id: "support", title: "پشتیبانی", route: "/support", icon: "yld-profile-about.webp",
+      blocks: [
+        cmsBlock("hero", "بنر پشتیبانی", "عنوان و اقدام اصلی", "yld-profile-about.webp", [cmsField("badge", "نشان", "پشتیبانی یولدا"), cmsField("title", "عنوان", "چطور کمکت کنیم؟"), cmsField("body", "توضیح", "برای سفارش فعال، سریع‌تر به پشتیبان وصل می‌شوی.", "textarea"), cmsField("cta", "متن دکمه", "ثبت درخواست")]),
+        cmsBlock("actions", "راه‌های ارتباط", "درخواست‌ها و گفت‌وگوی آنلاین", "yld-ui-notifications.webp"),
+        cmsBlock("faq", "پرسش‌های متداول", "پاسخ‌های راهنمای کاربران", "yld-ui-info.webp", [cmsField("title", "عنوان بخش", "پرسش‌های متداول")])
+      ]
+    }
+  ];
+
   const desktopNavigation = [
     {
       label: "مشتری",
@@ -316,6 +447,7 @@
         { title: "پنل اپراتور", route: "/ops", icon: "yld-ui-view-grid.webp" },
         { title: "مدیریت سفارش‌ها", route: "/ops/orders", icon: "yld-ui-orders.webp" },
         { title: "گزارش‌ها", route: "/ops/reports", icon: "yld-profile-transactions.webp" },
+        { title: "سوپرادمین محتوا", route: "/superadmin/content", icon: "yld-ui-edit.webp" },
         { title: "کتابخانه آیکون‌ها", route: "/icons", icon: "yld-ui-categories.webp" }
       ]
     },
@@ -337,6 +469,7 @@
     products,
     aiQuickPrompts,
     supportTopics,
+    cmsPages,
     desktopNavigation
   };
 })();

@@ -76,6 +76,7 @@
   --warning: #ee9b00;
   --blue: #0785d1;
   --blue-soft: #e1f4ff;
+  --rating: #765600;
   --radius-xs: 0.625rem;
   --radius-sm: 0.875rem;
   --radius-md: 1.125rem;
@@ -115,6 +116,7 @@
   --warning: #ffc34a;
   --blue: #62c3ff;
   --blue-soft: #15354a;
+  --rating: #ffd66b;
   --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.32);
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.42);

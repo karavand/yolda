@@ -1,11 +1,11 @@
 (function () {
   "use strict";
 
-  // The supplied brand asset is active; enable each loader only after its local media files are present.
+  // Local brand and the supplied Yolda loader are active for both loading contexts.
   const localAssetSwitches = Object.freeze({
     brand: true,
-    pageLoader: false,
-    aiLoader: false
+    pageLoader: true,
+    aiLoader: true
   });
   const current = window.YOLDA_CONFIG || {};
   const currentAssets = current.assets || {};
@@ -40,15 +40,15 @@
       }),
       pageLoader: mediaAsset(currentPageLoader, {
         enabled: localAssetSwitches.pageLoader,
-        webm: "assets/media/yolda-page-loader.webm",
-        mp4: "assets/media/yolda-page-loader.mp4",
-        poster: "assets/media/yolda-page-loader-poster.webp"
+        webm: "assets/media/yolda-loading.webm",
+        mp4: "",
+        poster: ""
       }),
       aiLoader: mediaAsset(currentAiLoader, {
         enabled: localAssetSwitches.aiLoader,
-        webm: "assets/media/yolda-ai-loader.webm",
-        mp4: "assets/media/yolda-ai-loader.mp4",
-        poster: "assets/media/yolda-ai-loader-poster.webp"
+        webm: "assets/media/yolda-loading.webm",
+        mp4: "",
+        poster: ""
       })
     }),
     featureFlags: Object.freeze({

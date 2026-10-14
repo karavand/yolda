@@ -66,6 +66,9 @@
     const normalized = normalize(text);
     const profile = {
       text: normalized,
+      service: /داروخانه|دارو|مکمل|سلامت/.test(normalized)
+        ? "pharmacy"
+        : /سوپرمارکت|خرید روزانه|کالا|میوه|سبزی/.test(normalized) ? "grocery" : "food",
       vector: emptyVector(),
       budget: null,
       maxDelivery: null,
@@ -109,6 +112,7 @@
   }
 
   function profileFromSelections(values = {}) {
+    const service = values.service || "food";
     const vector = emptyVector();
     const mood = values.mood || "comfort";
     const exclusions = String(values.exclusions || "")
@@ -119,21 +123,22 @@
     if (values.goal === "healthy") mergeVector(vector, { healthy: 1, "low-calorie": 0.8, light: 0.7 });
     if (values.goal === "filling") mergeVector(vector, { hungry: 1, "high-protein": 0.7 });
     if (values.goal === "fast") mergeVector(vector, { fast: 1 });
-    if (values.cuisine && vector[values.cuisine] !== undefined) vector[values.cuisine] = 1;
-    if (values.dietary === "vegetarian") vector.vegetarian = 1;
-    if (values.spicy === "high") vector.spicy = 1;
+    if (service === "food" && values.cuisine && vector[values.cuisine] !== undefined) vector[values.cuisine] = 1;
+    if (service === "food" && values.dietary === "vegetarian") vector.vegetarian = 1;
+    if (service === "food" && values.spicy === "high") vector.spicy = 1;
 
     return {
       text: "",
+      service,
       vector,
       budget: values.budget ? Number(values.budget) : null,
       maxDelivery: values.maxDelivery ? Number(values.maxDelivery) : null,
-      cuisine: values.cuisine || null,
+      cuisine: service === "food" ? values.cuisine || null : null,
       category: null,
-      dietary: values.dietary && values.dietary !== "none" ? [values.dietary] : [],
+      dietary: service === "food" && values.dietary && values.dietary !== "none" ? [values.dietary] : [],
       exclusions: [...new Set(exclusions)],
-      spicy: values.spicy === "high" ? 3 : values.spicy === "low" ? 0 : null,
-      mealTime: values.mealTime || currentMealTime(),
+      spicy: service === "food" ? values.spicy === "high" ? 3 : values.spicy === "low" ? 0 : null : null,
+      mealTime: service === "food" ? values.mealTime || currentMealTime() : null,
       priority: values.goal || "",
       recognized: [mood, values.goal, values.cuisine, ...exclusions].filter(Boolean)
     };
