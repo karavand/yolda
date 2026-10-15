@@ -7131,3 +7131,280 @@ button:disabled {
 [data-language="en"] .modal {
   text-align: left;
 }
+
+/* Yolda dark home: exact brand surfaces, accessible chrome and untouched service art. */
+[data-theme="dark"] .app-frame {
+  background: #0f0b1a;
+}
+
+[data-theme="dark"] .mobile-header {
+  border-block-end-color: rgba(46, 37, 69, 0.5);
+  background: #17112a;
+  color: #faf5ed;
+}
+
+[data-theme="dark"] .mobile-header .address-chip,
+[data-theme="dark"] .mobile-header .header-icon:not(.ai-header-button) {
+  border: 1px solid #3e2b5b;
+  background: #241a3d;
+  color: #faf5ed;
+}
+
+[data-theme="dark"] .mobile-header .address-chip {
+  color: #e7d8f5;
+}
+
+[data-theme="dark"] .mobile-header .header-icon:not(.ai-header-button) img,
+[data-theme="dark"] .mobile-header .address-chip img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(75%) sepia(19%) saturate(1175%) hue-rotate(213deg) brightness(101%) contrast(92%);
+}
+
+[data-theme="dark"] .mobile-header .ai-header-button {
+  border-color: rgba(255, 196, 0, 0.25);
+  background: rgba(255, 196, 0, 0.1);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .mobile-header .ai-header-button img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(82%) sepia(100%) saturate(1618%) hue-rotate(359deg) brightness(102%) contrast(105%);
+}
+
+[data-theme="dark"] .home-page {
+  background: #0d0a15;
+  color: #faf5ed;
+}
+
+[data-theme="dark"] .home-page h1,
+[data-theme="dark"] .home-page h2,
+[data-theme="dark"] .home-page h3,
+[data-theme="dark"] .home-page strong {
+  color: #faf5ed;
+}
+
+[data-theme="dark"] .home-page .home-greeting > p:not(.eyebrow),
+[data-theme="dark"] .home-page .home-context-pill small,
+[data-theme="dark"] .home-page .home-resume-card > p:not(.eyebrow),
+[data-theme="dark"] .home-page .home-confidence small,
+[data-theme="dark"] .home-page .home-promo-card small,
+[data-theme="dark"] .home-page .product-row p {
+  color: #b8a8c8;
+}
+
+[data-theme="dark"] .home-page .eyebrow,
+[data-theme="dark"] .home-page .section-head a,
+[data-theme="dark"] .home-page .text-link,
+[data-theme="dark"] .home-page .price,
+[data-theme="dark"] .home-page .home-service-arrow,
+[data-theme="dark"] .home-page .home-resume-product small {
+  color: #ffc400;
+}
+
+[data-theme="dark"] .home-page .home-context-pill,
+[data-theme="dark"] .home-page .search-box,
+[data-theme="dark"] .home-page .home-search-filter {
+  border-color: #3e2b5b;
+  background: #241a3d;
+  color: #faf5ed;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .home-page .search-placeholder,
+[data-theme="dark"] .home-page .search-box input,
+[data-theme="dark"] .home-page .search-box input::placeholder,
+[data-theme="dark"] .home-page .home-search-filter {
+  color: #b8a8c8;
+  opacity: 1;
+}
+
+[data-theme="dark"] .home-page .search-box img,
+[data-theme="dark"] .home-page .home-search-filter img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(74%) sepia(12%) saturate(667%) hue-rotate(229deg) brightness(92%) contrast(89%);
+}
+
+[data-theme="dark"] .home-page .search-box:hover,
+[data-theme="dark"] .home-page .search-box:focus-within,
+[data-theme="dark"] .home-page .search-box:focus-visible,
+[data-theme="dark"] .home-page .home-context-pill:hover {
+  border-color: #b79df5;
+  box-shadow: 0 0 0 3px rgba(183, 157, 245, 0.16);
+}
+
+[data-theme="dark"] .home-page .home-ai-hero {
+  border-color: rgba(123, 47, 190, 0.5);
+  background:
+    radial-gradient(circle at 86% 88%, rgba(255, 196, 0, 0.19), transparent 36%),
+    linear-gradient(135deg, #1a0a2e 0%, #3d0f62 50%, #5e1a84 100%);
+  color: #faf5ed;
+  box-shadow: 0 18px 46px rgba(31, 7, 49, 0.34);
+}
+
+[data-theme="dark"] .home-page .home-ai-hero::before {
+  border-color: rgba(123, 47, 190, 0.5);
+}
+
+[data-theme="dark"] .home-page .home-ai-copy h2 {
+  color: #faf5ed;
+}
+
+[data-theme="dark"] .home-page .home-ai-copy > p {
+  color: #d8c7e8;
+}
+
+[data-theme="dark"] .home-page .home-ai-hero .hero-badge {
+  border: 1px solid rgba(255, 196, 0, 0.27);
+  background: rgba(255, 196, 0, 0.15);
+  color: #ffc400;
+}
+
+[data-theme="dark"] .home-page .home-ai-hero .btn-yellow {
+  background: #ffc400;
+  color: #210042;
+  box-shadow: 0 4px 16px rgba(255, 196, 0, 0.33);
+}
+
+[data-theme="dark"] .home-page .home-ai-secondary {
+  color: #e7d8f5;
+}
+
+[data-theme="dark"] .home-page .home-ai-prompts span {
+  border-color: rgba(216, 199, 232, 0.24);
+  background: rgba(23, 17, 42, 0.42);
+  color: #d8c7e8;
+}
+
+[data-theme="dark"] .home-page .home-ai-visual > img,
+[data-theme="dark"] .home-page .home-service-icon img,
+[data-theme="dark"] .home-page .home-promo-card > img,
+[data-theme="dark"] .home-page .image-well img,
+[data-theme="dark"] .home-page .home-confidence img,
+[data-theme="dark"] .home-page .home-context-pill > img {
+  opacity: 1;
+  filter: none;
+}
+
+[data-theme="dark"] .home-page .home-ai-visual > img {
+  filter: drop-shadow(0 1.4rem 1.8rem rgba(9, 0, 18, 0.34));
+}
+
+[data-theme="dark"] .home-page .home-service-card {
+  border-color: #3e2b5b;
+  background: #17112a;
+  color: #e7d8f5;
+  box-shadow: 0 10px 24px rgba(4, 2, 8, 0.18);
+}
+
+[data-theme="dark"] .home-page .home-service-courier { background: #2a1f40; }
+[data-theme="dark"] .home-page .home-service-pharmacy { background: #1e2b3a; }
+[data-theme="dark"] .home-page .home-service-food { background: #2e1b10; }
+[data-theme="dark"] .home-page .home-service-grocery { background: #1c2e1a; }
+[data-theme="dark"] .home-page .home-service-more { background: #2e1440; }
+[data-theme="dark"] .home-page .home-service-reservation { background: #1c2030; }
+[data-theme="dark"] .home-page .home-service-bills { background: #2a2010; }
+[data-theme="dark"] .home-page .home-service-wallet { background: #0f2530; }
+
+[data-theme="dark"] .home-page .home-service-card.is-featured {
+  border-color: #3e2b5b;
+  background: #1c2030;
+  box-shadow: 0 10px 24px rgba(4, 2, 8, 0.18);
+}
+
+[data-theme="dark"] .home-page .home-service-card strong,
+[data-theme="dark"] .home-page .home-service-card.is-featured strong {
+  color: #e7d8f5;
+}
+
+[data-theme="dark"] .home-page .home-service-copy small {
+  color: #b8a8c8;
+}
+
+[data-theme="dark"] .home-page .home-service-icon {
+  overflow: visible;
+  background: transparent;
+}
+
+[data-theme="dark"] .home-page .home-service-card.coming-soon {
+  opacity: 1;
+}
+
+[data-theme="dark"] .home-page .home-service-card.coming-soon .home-service-copy,
+[data-theme="dark"] .home-page .home-service-card.coming-soon .home-service-badge {
+  opacity: 0.66;
+}
+
+[data-theme="dark"] .home-page .home-service-badge {
+  border: 1px solid rgba(255, 196, 0, 0.24);
+  background: rgba(255, 196, 0, 0.1);
+  color: #ffc400;
+}
+
+[data-theme="dark"] .home-page .home-resume-card,
+[data-theme="dark"] .home-page .home-confidence,
+[data-theme="dark"] .home-page .home-promo-card,
+[data-theme="dark"] .home-page .vendor-card,
+[data-theme="dark"] .home-page .product-row {
+  border-color: #3e2b5b;
+  background: #17112a;
+  color: #faf5ed;
+  box-shadow: 0 10px 24px rgba(4, 2, 8, 0.18);
+}
+
+[data-theme="dark"] .home-page .home-resume-card,
+[data-theme="dark"] .home-page .home-promo-card.is-delivery,
+[data-theme="dark"] .home-page .home-promo-card.is-wallet {
+  background: #17112a;
+}
+
+[data-theme="dark"] .home-page .home-resume-product,
+[data-theme="dark"] .home-page .home-resume-icon,
+[data-theme="dark"] .home-page .vendor-card .image-well,
+[data-theme="dark"] .home-page .product-row .image-well {
+  border-color: #3e2b5b;
+  background: #241a3d;
+}
+
+[data-theme="dark"] .home-page .home-confidence > div {
+  border-inline-end-color: rgba(46, 37, 69, 0.5);
+}
+
+[data-theme="dark"] .home-page .home-promo-card::after {
+  background: #241a3d;
+}
+
+[data-theme="dark"] .bottom-nav {
+  border-block-start-color: rgba(46, 37, 69, 0.5);
+  background: #17112a;
+  box-shadow: 0 -0.65rem 2rem rgba(0, 0, 0, 0.24);
+}
+
+[data-theme="dark"] .bottom-nav a,
+[data-theme="dark"] .bottom-nav a.is-active {
+  background: transparent;
+  color: #c8afde;
+  opacity: 1;
+}
+
+[data-theme="dark"] .bottom-nav a span {
+  opacity: 1;
+}
+
+[data-theme="dark"] .bottom-nav img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(80%) sepia(13%) saturate(997%) hue-rotate(229deg) brightness(92%) contrast(91%);
+}
+
+[data-theme="dark"] .bottom-nav a.is-active {
+  color: #ffc400;
+  font-weight: 900;
+}
+
+[data-theme="dark"] .bottom-nav a.is-active::after {
+  display: none;
+}
+
+[data-theme="dark"] .bottom-nav a.is-active img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(82%) sepia(100%) saturate(1618%) hue-rotate(359deg) brightness(102%) contrast(105%);
+}

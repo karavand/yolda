@@ -268,7 +268,7 @@ if (!appSource.includes('asset.closest(".icon-card")')) failures.push("کتاب�
 if (appSource.includes("document.body.dataset.route =")) failures.push("نشانگر مسیر body با قرارداد data-route اکشن‌ها تداخل دارد");
 if (!appSource.includes("document.body.dataset.page =")) failures.push("نشانگر امن صفحه روی body وجود ندارد");
 if (!mainCss.includes(".icon-sprite-crop")) failures.push("استایل Sprite آیکن‌ها وجود ندارد");
-if (!serviceWorker.includes('CACHE_NAME = "yolda-web-v28"')) failures.push("نسخه کش Service Worker به‌روز نیست");
+if (!serviceWorker.includes('CACHE_NAME = "yolda-web-v29"')) failures.push("نسخه کش Service Worker به‌روز نیست");
 if (!serviceWorker.includes('assets/media/yolda-loading.webm')) failures.push("ویدیوی لودینگ در کش آفلاین ثبت نشده است");
 if (!appSource.includes('loader.classList.add("has-media")')) failures.push("حالت تمام‌صفحه لودینگ ویدیویی فعال نمی‌شود");
 if (!appSource.includes("const isInitial = !lastRenderedPath")) failures.push("لودینگ مسیری برای همه صفحه‌ها فعال نیست");

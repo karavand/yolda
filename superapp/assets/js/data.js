@@ -176,7 +176,7 @@
     { id: "food", title: "رستوران", route: "/food", icon: "yld-discover-restaurant.webp", color: "#fff2cf" },
     { id: "pharmacy", title: "داروخانه", route: "/pharmacy", icon: "yld-discover-pharmacy.webp", color: "#ffe3ea" },
     { id: "courier", title: "ارسال بسته", route: "/delivery", icon: "yld-brand-service-courier.webp", color: "#e1f4ff" },
-    { id: "wallet", title: "کیف پول", route: "/wallet", icon: "yld-profile-wallet.webp", color: "#efe4ff" },
+    { id: "wallet", title: "کیف پول", route: "/wallet", icon: "yld-pay-bank-card.webp", color: "#efe4ff" },
     { id: "bills", title: "پرداخت قبض", route: "/bills", icon: "yld-pay-tax.webp", color: "#e8f7ff", soon: true },
     { id: "reservation", title: "رزرو سه‌بعدی", route: "/reservation", icon: "yld-brand-service-reservation-3d.webp", color: "#f2e8ff" },
     { id: "more", title: "بیشتر", route: "/services", icon: "yld-ui-categories.webp", color: "#f1e7ff" }

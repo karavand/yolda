@@ -265,7 +265,7 @@
           <div class="section-head home-section-head home-services-heading"><div><p class="eyebrow" data-cms-field="eyebrow">همه‌چیز در یک جا</p><h2 data-cms-field="title">سرویس‌های یولدا</h2></div><a data-route="/services" data-cms-field="cta">مشاهده همه</a></div>
           <section class="home-service-grid" aria-label="سرویس‌های یولدا">
             ${data.services.map((service) => `
-              <button type="button" class="home-service-card ${service.soon ? "coming-soon" : ""} ${service.id === "reservation" ? "is-featured" : ""}" ${service.soon ? "disabled aria-disabled=\"true\"" : `data-route="${service.route}"`}>
+              <button type="button" class="home-service-card home-service-${service.id} ${service.soon ? "coming-soon" : ""} ${service.id === "reservation" ? "is-featured" : ""}" ${service.soon ? "disabled aria-disabled=\"true\"" : `data-route="${service.route}"`}>
                 <span class="home-service-icon" style="--service-color:${service.color}">${image(service.icon, service.title)}</span>
                 <span class="home-service-copy"><strong>${service.title}</strong><small>${serviceMeta[service.id]}</small></span>
                 ${service.soon ? `<span class="home-service-badge">به‌زودی</span>` : `<span class="home-service-arrow" aria-hidden="true">←</span>`}
