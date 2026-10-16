@@ -1,4 +1,4 @@
-const CACHE_NAME = "yolda-web-v29";
+const CACHE_NAME = "yolda-web-v30";
 const APP_SHELL = [
   "./",
   "./index.html",
